@@ -187,7 +187,7 @@ Cons:
   - Which countries/cities beyond Tokyo does the user target? This decides Adzuna country codes (no jp), JSearch country/language pairs, and whether Jooble keys are worth requesting.
   - Which specific companies should be on the watchlist, and which ATS does each use? (Determines whether Workday/BambooHR connectors need to be pulled into v1.)
   - Does the user already receive job-alert/scout emails from LinkedIn, Indeed, Wantedly, Bizreach, Green, doda, Rikunabi NEXT? Exact sender addresses and HTML templates must be sampled from the inbox before writing parsers.
-  - Is JobPilot strictly personal/non-commercial? Adzuna's ToS gives organisations only a 14-day trial; an individual's personal use appears fine but should be confirmed if the project is ever open-sourced or shared.
+  - Is Mita JobPilot strictly personal/non-commercial? Adzuna's ToS gives organisations only a 14-day trial; an individual's personal use appears fine but should be confirmed if the project is ever open-sourced or shared.
   - Can Wantedly/Bizreach-derived content be sent to Claude/GPT at all? Wantedly's terms prohibit ingesting its content into AI models; safest is to store only metadata (title/company/URL) for those sources and exclude their text from LLM prompts.
   - TokyoDev and Japan Dev terms-of-use pages were not verified (robots.txt is permissive); confirm they do not forbid automated access before enabling the sitemap crawler, and confirm TokyoDev pages carry JobPosting JSON-LD.
   - JSearch quality for Japanese-language queries (country=jp&language=ja) is unverified; run a 5-request smoke test within the free quota.

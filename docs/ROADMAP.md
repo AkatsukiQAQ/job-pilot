@@ -1,11 +1,11 @@
-# JobPilot 分阶段路线图
+# Mita JobPilot 分阶段路线图
 
 | 项目 | 内容 |
 |---|---|
-| 状态 | 草案 v0.2（2026-09-16） |
+| 状态 | 草案 v0.3（2026-09-17） |
 | 前置 | [REQUIREMENTS.md](REQUIREMENTS.md) · [ARCHITECTURE.md](ARCHITECTURE.md) |
 
-原则：每个阶段独立可用；先把「每个选考流程的状态自动保持最新」做对，再叠加控制、日历、记忆、搜索、自有对话、学习循环、对外发布。估时按一个人晚上和周末的节奏，评审一致认为原提案偏乐观，这里已上调约三成。
+原则：每个阶段独立可用；先把「每个选考流程的状态自动保持最新」做对，再叠加控制、日历、记忆、搜索、自有对话、学习循环、对外发布。估时按一个人晚上和周末的节奏，评审一致认为原提案偏乐观，这里已上调约三成。阶段是检查点而非停顿：用户计划连续推进（决策 D21），退出标准用于自检，不要求逐阶段停下等待批准。
 
 ---
 
@@ -29,7 +29,7 @@
 **目标**：把空的 uv 项目变成可打包、可测试、可配置的应用，之后每个阶段都是「加一个迁移 + 一个服务 + 一个 CLI 子命令」。
 
 范围：
-- `uv self update`；`pyproject.toml` 加 `[build-system]`（`uv_build`）、`[project.scripts] jobpilot / jobpilot-mcp`、dev 依赖组（pytest、ruff、pyright）、项目元数据（描述、README；许可与作者待 Q7 / Q8 / Q13 决定）。
+- `uv self update`；`pyproject.toml` 加 `[build-system]`（`uv_build`）、`[project.scripts] jobpilot / jobpilot-mcp`、dev 依赖组（pytest、ruff、pyright）、项目元数据（描述、README；许可与作者在公开前决定，见决策 D19）。
 - `src/jobpilot/settings.py`（pydantic-settings，`JOBPILOT_` 前缀，含 `CAMPAIGN_NAME / _KIND / _REGION_PACK`）、`secrets.py`（`SecretStore` 协议：keyring 存短 key、DPAPI 文件存令牌、env 后端供测试；槽位白名单）。令牌从第一次落盘起就加密。
 - `store/db.py`（连接工厂：WAL、外键、busy_timeout、迁移运行器）、`migrations/0001_init.sql` 空骨架。
 - `regions/base.py` 协议 + `global_en` 与 `japan` 空目录。
@@ -45,7 +45,7 @@
 **目标**：过去 180 天在 Gmail 留下痕迹的每一个选考流程出现在状态看板上，阶段、下一步截止、最近事件正确；新邮件 2 分钟内更新看板；外部写操作在结构上不可能；Claude Desktop / Claude Code / Codex 能回答「我在 X 公司进行到哪了」。
 
 范围：
-- Google Cloud 项目：启用 Gmail 与 Calendar API；Auth Platform External + Testing，本人为测试用户；**一次性申请** `gmail.readonly` 与 `calendar.events.readonly`；Desktop 客户端。`jobpilot auth google`（loopback + PKCE），落盘前断言范围子集，启动时在线核对 `tokeninfo`。
+- Google Cloud 项目：启用 Gmail 与 Calendar API；Auth Platform External + Testing，本人为测试用户；**一次性申请** `gmail.readonly` 与 `calendar.events.readonly`；Desktop 客户端。`jobpilot auth google`（loopback + PKCE），落盘前断言范围子集，启动时在线核对 `tokeninfo`；每运行一次添加一个邮箱账号（`email_account` 一行），数量不限，同步遍历所有启用账号，看板跨账号合并。
 - `ReadOnlyHttp` 传输层；`connectors/gmail/{auth,readonly_http,sync,parse}.py`。
 - 迁移 0001：`campaign`、`company`（含 `is_current_employer`）、`company_alias`、`application`（12 态枚举）、`application_event`、`email_account`、`email_message` + `email_fts`、`email_classification`、`classification_rule`、`rule_stat`、`pii_aliases`、`audit_log`、`source_state`。
 - `jobpilot sync --backfill-days 180`：元数据全取，规则放行的邮件取全文；按 ≤ 50 封一批并退避；存最大 `historyId`。
@@ -76,7 +76,7 @@
 **目标**：看板可信、可改；LinkedIn 官方导出补上 Gmail 看不到的申请；用户可通过聊天 / 语音 / CLI 改状态、记申请，全部经确认门；有每日摘要与提醒；有备份；有设计文档；有一个每天愿意打开的只读 Web 看板。
 
 范围：
-- **`docs/DESIGN.md`（前置交付物）**：JobPilot 自己的信息架构（侧栏导航树：看板 / 岗位 / 面试 / 记忆收件箱 / 待复核 / 信息源 / 设置）、5 到 8 条核心用户流程（新邮件 → 看板变更 → 复核；粘贴 JD → 评估 → 记录申请；语音改状态 → 确认卡片；门户回填；多周期切换；研究请求 → 回填）、页面与组件清单、design tokens（色板、字号、间距、状态色，含金色「待确认」）。
+- **`docs/DESIGN.md`（前置交付物）**：Mita JobPilot 自己的信息架构（侧栏导航树：看板 / 岗位 / 面试 / 记忆收件箱 / 待复核 / 信息源 / 设置）、5 到 8 条核心用户流程（新邮件 → 看板变更 → 复核；粘贴 JD → 评估 → 记录申请；语音改状态 → 确认卡片；门户回填；多周期切换；研究请求 → 回填）、页面与组件清单、design tokens（色板、字号、间距、状态色，含金色「待确认」）。
 - 迁移 0002 / 0003：`source_import` + `li_*`、`pending_actions`、`egress_log`。`jobpilot import linkedin <zip>`（表头驱动、自然键幂等、原 ZIP 归档、Easy Apply 合并为 `application(channel='linkedin_easy_apply')`）；应用内下载清单与「Did you apply? 一律答是」提示；LinkedIn 邮件通知设置提醒。
 - `actions.py` 与提议 / 确认 MCP 工具；CLI 对应 `set-status / log / note / exclude / merge / split`；优先级矩阵；含糊匹配 → `candidates_json`。
 - `jobpilot review`：走查待复核分类，接受 / 拒绝回写 `user_confirmed` 与 `rule_stat`；规则三档精度门槛生效。
@@ -110,7 +110,7 @@
 - MCP 工具 `get_profile / search_memory / propose_memory_fact`；资源 `jobpilot://profile`。
 - 种子：按 `campaign.kind` 分组的引导问卷（新卒组 / 中途组）→ 候选事实；LinkedIn Job Seeker Preferences → 候选事实；**ChatGPT / Claude 对话导出导入**（`jobpilot import chat <file>`）→ 同一抽取管线 → 收件箱。
 - `jobpilot memory inbox` CLI 与 Web UI 收件箱页。
-- 多邮箱：`email_account` 多行，每账号令牌与游标。
+- 用户档案设计讨论（D17）在本阶段开工前完成，`profile_facts` 与结构化 profile 的分工据此定稿。
 - 响应式验收：看板与面试 Agenda 在 390 px 宽度可用；`tailscale serve` 手机访问文档。
 
 不做：embedding、自动每轮抽取（需自有聊天）、情节摘要、岗位搜索。
@@ -193,7 +193,7 @@
 
 ## Phase 7 · 对外发布
 
-**目标**：任何人能在 30 分钟内跑起自己的 JobPilot，且仓库里没有作者的身份信息。
+**目标**：任何人能在 30 分钟内跑起自己的 Mita JobPilot，且仓库里没有作者的身份信息。
 
 范围：
 - `jobpilot init` 引导向导：数据目录、区域包、求职周期、Google Cloud 项目分步说明（截图）、OAuth 客户端文件导入、LLM key、浏览器选择、现雇主域名（可选）。
@@ -201,7 +201,7 @@
 - UI 文案 i18n（zh / ja / en），文档英文版。
 - **文档脱敏**：逐文件清理 `docs/research` 中「the user's own / this user / for the user」及雇主、签证、机器路径表述；`scripts/check_pii.py` 作为 pre-commit hook，对 tracked 文件匹配内置模式与本地 denylist，命中即拒绝提交。
 - 匿名化夹具与示例数据集（虚构公司），CI 跑全部守卫测试。
-- 许可、贡献指南、安全披露说明、隐私与提供商条款提醒；`pyproject.toml` 元数据补齐（作者不填个人邮箱）；提交身份改用 noreply 地址（Q13）。
+- 许可、贡献指南、安全披露说明、隐私与提供商条款提醒；`pyproject.toml` 元数据补齐（作者不填个人邮箱）；公开前决定是否把提交身份改为 GitHub noreply 地址（D19）。
 - 去除任何针对首个用户的默认值。
 
 退出标准：一位没参与开发的人按 README 在另一台机器上完成安装、授权、回填并看到看板；`uv run scripts/check_pii.py` 在全量 tracked 文件上零命中。

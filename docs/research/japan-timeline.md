@@ -190,4 +190,4 @@ Src: https://ai.sony/joinus/jobroles/
 - 出入国在留管理庁 大学等を卒業後就職活動のための滞在をご希望のみなさまへ (特定活動): https://www.moj.go.jp/isa/applications/resources/nyukan_nyukan84.html
 - 厚生労働省 2024年4月から労働条件明示のルールが変わります: https://www.mhlw.go.jp/stf/newpage_32105.html
 - McKinsey Japan application process for undergrads 2026 (timed out): https://www.mckinsey.com/jp/careers/careers-in-japan/application-process-for-undergrads-2026
-- JobPilot design baseline (local): ../ref/gpt_design.txt
+- Mita JobPilot design baseline (local): ../ref/gpt_design.txt

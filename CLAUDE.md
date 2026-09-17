@@ -1,4 +1,4 @@
-# JobPilot — 面向 AI 协作者的指引
+# Mita JobPilot — 面向 AI 协作者的指引
 
 ## 先读什么
 

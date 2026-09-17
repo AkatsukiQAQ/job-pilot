@@ -1,4 +1,4 @@
-# JobPilot
+# Mita JobPilot
 
 本地优先、只读接入外部信息源、带 AI 对话与记忆的个人求职工作台。
 A local-first, read-only-integrated personal job-hunting workbench with an AI chat and memory layer.

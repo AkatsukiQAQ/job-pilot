@@ -1,8 +1,8 @@
-# JobPilot 架构与技术选型
+# Mita JobPilot 架构与技术选型
 
 | 项目 | 内容 |
 |---|---|
-| 状态 | 草案 v0.2（2026-09-16） |
+| 状态 | 草案 v0.3（2026-09-17） |
 | 前置 | [REQUIREMENTS.md](REQUIREMENTS.md) 需求与硬约束 |
 | 后续 | [ROADMAP.md](ROADMAP.md) 分阶段落地 |
 
@@ -138,6 +138,8 @@ flowchart LR
 
 ### 5.2 记忆域（Phase 3 起）
 
+> 初稿。用户档案的最终形态（传统结构化 profile 与 LLM 记忆事实层的分工与互相引用）在 Phase 3 开工前专门讨论（决策 D17）。预期形态是 `user_profile` 系列结构化表（经历、学历、在职状态、现雇主、技能）与 `profile_facts` 并存，现雇主排除等规则从档案推导。
+
 | 表 | 阶段 | 关键列 | 说明 |
 |---|---|---|---|
 | `profile_facts` | 3 | `fact_id`, `category`（role_target, salary_expectation, location_pref, remote_pref, company_type_pref, company_size_pref, industry_pref, tech_pref, culture_pref, work_style, deal_breaker, personality, strength, weakness, language, visa_status, availability, graduation, current_employer, current_salary, notice_period, employment_status, change_reason, other）, `key`（点分 slug，如 `salary.base.min_jpy`）, `value_text`, `value_json`, `polarity CHECK IN ('prefer','avoid','neutral','hard_require','hard_exclude')`, `strength`, `confidence`, `source_type CHECK IN ('user_stated','user_confirmed','llm_inferred','outcome_inferred','linkedin_preferences','chat_import','manual')`, `source_ref`, `evidence_quote`, `valid_from`, `valid_to`, `expires_at`, `status CHECK IN ('candidate','active','superseded','rejected','expired')`, `superseded_by` | 双时态 + 取代链。单值类别（年薪、远程、可入职时间、签证、现雇主）在 `status='active'` 上做部分唯一索引 |
@@ -167,7 +169,7 @@ flowchart LR
 
 ### 6.1 Gmail
 
-- 授权：Google Cloud 项目 → 启用 Gmail API 与 Calendar API → Auth Platform 用户类型 External → 添加本人为测试用户 → 一次性申请两个范围 → 建 Desktop 类型 OAuth 客户端 → `jobpilot auth google` 走 loopback + PKCE → 验证通过后点击「Publish app」（不提交验证）→ 删除旧令牌重新授权。第一阶段退出标准之一是**令牌 8 天浸泡测试**通过。
+- 授权：Google Cloud 项目 → 启用 Gmail API 与 Calendar API → Auth Platform 用户类型 External → 添加本人为测试用户 → 一次性申请两个范围 → 建 Desktop 类型 OAuth 客户端 → `jobpilot auth google` 走 loopback + PKCE（每次运行添加一个账号，写入 `email_account`；数量不限）→ 验证通过后点击「Publish app」（不提交验证）→ 删除旧令牌重新授权。第一阶段退出标准之一是**令牌 8 天浸泡测试**通过。
 - 回填：`messages.list q='newer_than:180d -category:promotions -category:social -in:spam -in:trash'`，每页 500；`messages.get format=metadata`（From、To、Reply-To、Sender、Subject、Date、Message-ID、In-Reply-To、References、List-Unsubscribe）；只有规则门放行的邮件再取 `format=full`。约 5000 封 × `messages.get` 20 单位 ≈ 10 万配额单位；在每用户每分钟 6000 单位的上限下回填约需 17 分钟，需按 ≤ 50 封一批并对 429 / 403 指数退避；日配额 8000 万单位 / 项目远用不完。
 - 增量：`users.history.list(startHistoryId, historyTypes=messageAdded)` 每 90 秒；404 则从最新 `internalDate` 起重同步。
 - 现雇主域名：`company.is_current_employer` 为真的域名，其邮件默认 `is_job_related=false`，除非用户确认。
@@ -308,7 +310,7 @@ src/jobpilot/regions/
 ## 13. 仓库结构（目标）
 
 ```
-JobPilot/
+Mita JobPilot/
   pyproject.toml            # uv_build；[project.scripts] jobpilot / jobpilot-mcp；dev 组 pytest ruff pyright
   uv.lock
   .env.example              # 非机密配置示例
