@@ -4,6 +4,7 @@ Core code never assumes a market; everything market-specific lives in a pack's d
 """
 
 from jobpilot.regions.base import (
+    CompanySuffix,
     Lang,
     Milestone,
     PhraseEntry,
@@ -27,6 +28,7 @@ register(GlobalEnPack.name, GlobalEnPack)
 register(JapanPack.name, JapanPack)
 
 __all__ = [
+    "CompanySuffix",
     "GlobalEnPack",
     "JapanPack",
     "Lang",

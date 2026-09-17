@@ -1,0 +1,6 @@
+# Region-pack data, schema v1. Every item MUST carry verified + source_url (see stages.yaml).
+# company_suffixes.yaml item shape: {token, position: prefix|suffix|any, lang, verified, source_url}
+# Legal-form tokens stripped when normalising company names (matched after NFKC + casefold).
+# Filled in Phase 1 slice 3.
+version: 1
+items: []

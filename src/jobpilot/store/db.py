@@ -8,6 +8,7 @@ checksum; a file that changes after being applied fails loudly.
 from __future__ import annotations
 
 import hashlib
+import itertools
 import re
 import sqlite3
 from collections.abc import Iterator
@@ -18,6 +19,7 @@ from importlib.resources.abc import Traversable
 from pathlib import Path
 
 _MIGRATION_RE = re.compile(r"^(\d{4})_([a-z0-9_]+)\.sql$")
+_savepoint_ids = itertools.count(1)
 
 
 class MigrationError(RuntimeError):
@@ -32,9 +34,26 @@ def utc_now_iso() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
-def connect(path: Path | str) -> sqlite3.Connection:
-    """Open (and create if needed) the database with the project's PRAGMA set."""
+def to_iso(dt: datetime) -> str:
+    """Render an aware datetime as the UTC ISO-8601 text form used in every table."""
+    if dt.tzinfo is None:
+        raise ValueError("naive datetime; timestamps must be timezone-aware")
+    return dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
+def connect(path: Path | str, *, readonly: bool = False) -> sqlite3.Connection:
+    """Open (and create if needed) the database with the project's PRAGMA set.
+
+    ``readonly=True`` opens with ``mode=ro`` (structural read-only for the MCP process). A WAL
+    database opens read-only as long as its ``-shm`` file exists or the directory is writable.
+    """
     p = Path(path)
+    if readonly:
+        uri = p.resolve().as_uri() + "?mode=ro"
+        conn = sqlite3.connect(uri, uri=True, timeout=5.0, autocommit=True)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout=5000")
+        return conn
     if str(p) != ":memory:":
         p.parent.mkdir(parents=True, exist_ok=True)
     # autocommit=True: the driver never opens implicit transactions; transaction() is explicit.
@@ -49,6 +68,18 @@ def connect(path: Path | str) -> sqlite3.Connection:
 
 @contextmanager
 def transaction(conn: sqlite3.Connection) -> Iterator[sqlite3.Connection]:
+    """Explicit transaction; nests as a SAVEPOINT when one is already open."""
+    if conn.in_transaction:
+        name = f"sp_{next(_savepoint_ids)}"
+        conn.execute(f"SAVEPOINT {name}")
+        try:
+            yield conn
+        except BaseException:
+            conn.execute(f"ROLLBACK TO {name}")
+            conn.execute(f"RELEASE {name}")
+            raise
+        conn.execute(f"RELEASE {name}")
+        return
     conn.execute("BEGIN")
     try:
         yield conn
@@ -114,7 +145,7 @@ def run_migrations(
             continue
         with transaction(conn):
             # autocommit=True: executescript performs no implicit COMMIT, so the file runs inside
-            # our transaction. Migration files must not contain BEGIN/COMMIT.
+            # our transaction. Migration files must not contain BEGIN/COMMIT statements.
             conn.executescript(sql)
             conn.execute(
                 "INSERT INTO schema_migrations(version, name, applied_at, checksum)"
@@ -142,6 +173,7 @@ __all__ = [
     "latest_available_version",
     "list_migrations",
     "run_migrations",
+    "to_iso",
     "transaction",
     "utc_now_iso",
 ]

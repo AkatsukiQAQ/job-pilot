@@ -1,7 +1,8 @@
 """RegionPack protocol, sourced data models, and the YAML-backed default implementation.
 
 Every data item carries provenance (`verified`, `source_url`). Unverified items may only
-propose, never auto-apply (ARCHITECTURE section 10).
+propose, never auto-apply (ARCHITECTURE section 10). All fields added after Phase 0 have
+defaults so older data files keep loading.
 """
 
 from __future__ import annotations
@@ -14,9 +15,8 @@ from typing import Any, ClassVar, Literal, Protocol, runtime_checkable
 import yaml
 from pydantic import BaseModel, Field
 
-from jobpilot.domain import ApplicationStatus, Campaign, CampaignKind, Track
+from jobpilot.domain import ApplicationStatus, Campaign, CampaignKind, Lang, Track
 
-Lang = Literal["en", "ja", "zh"]
 SCHEMA_VERSION = 1
 
 
@@ -41,25 +41,52 @@ class Milestone(Sourced):
     kinds: list[CampaignKind] = Field(default_factory=list)  # empty = all kinds
 
 
+CompanyFrom = Literal["none", "local_part", "subdomain", "display_name", "subject", "group"]
+HeaderName = Literal["from", "reply_to", "sender", "any"]
+
+
 class SenderRule(Sourced):
     rule_id: str
-    from_pattern: str | None = None  # regex on From/Sender address; platform/vendor level only
+    from_pattern: str | None = None  # regex on the address; platform/vendor level only
     subject_pattern: str | None = None
     platform: str
-    category: str
+    category: str  # EmailCategory value or 'unknown' (platform only; body decides)
     gate: bool = False  # True -> fetch the full body
+    relay: bool = False  # multi-company relay: never derive the company from the sender domain
+    company_from: CompanyFrom = "none"
+    company_group: str | None = None  # named regex group when company_from == 'group'
+    header: HeaderName = "any"
+    llm_allowed: bool = True  # False when the platform's terms forbid feeding content to AI
+    weight: float = 1.0
 
 
 class UrlRule(Sourced):
     rule_id: str
-    host_pattern: str
+    host_pattern: str  # regex on the URL host
+    path_pattern: str | None = None  # regex on the path; named group 'company' yields a slug
     platform: str
+    category: str | None = None  # e.g. 'assessment_invite' for test vendors
+    gate: bool = True
+
+
+PhraseScope = Literal["subject", "body", "any"]
 
 
 class PhraseEntry(Sourced):
     phrase: str
-    category: str
+    category: str  # EmailCategory value, or a helper category (pii_*, quote_marker, ...)
     weight: float = 1.0
+    regex: bool = False  # phrase is a regex (applied after NFKC)
+    core: bool = False  # rejection needs at least one core hit
+    scope: PhraseScope = "any"
+    event_type: str | None = None  # overrides CATEGORY_DEFAULT_EVENT
+    track_hint: str | None = None  # 'intern' when the phrase implies an internship process
+
+
+class CompanySuffix(Sourced):
+    token: str  # legal-form token, matched after NFKC + casefold
+    position: Literal["prefix", "suffix", "any"] = "any"
+    lang: str | None = None
 
 
 class Question(Sourced):
@@ -93,9 +120,11 @@ class RegionPack(Protocol):
 
     def url_rules(self) -> list[UrlRule]: ...
 
-    def salary_parsers(self) -> list[SalaryParser]: ...
-
     def phrase_lists(self, lang: Lang) -> list[PhraseEntry]: ...
+
+    def company_suffixes(self) -> list[CompanySuffix]: ...
+
+    def salary_parsers(self) -> list[SalaryParser]: ...
 
     def onboarding_questions(self, kind: CampaignKind) -> list[Question]: ...
 
@@ -104,7 +133,8 @@ class YamlRegionPack:
     """Reads ``data/pack.yaml`` (default_lang, default_tz) and ``data/*.yaml`` item files.
 
     Item files: stages.yaml, milestones.yaml, senders.yaml, urls.yaml, phrases.<lang>.yaml,
-    questions.yaml. Schema v1: ``{version: 1, items: [...]}``. A missing file yields [].
+    company_suffixes.yaml, questions.yaml. Schema v1: ``{version: 1, items: [...]}``.
+    A missing file yields [].
     """
 
     name: ClassVar[str]
@@ -149,11 +179,14 @@ class YamlRegionPack:
     def url_rules(self) -> list[UrlRule]:
         return [UrlRule.model_validate(i) for i in self._items("urls.yaml")]
 
-    def salary_parsers(self) -> list[SalaryParser]:
-        return []
-
     def phrase_lists(self, lang: Lang) -> list[PhraseEntry]:
         return [PhraseEntry.model_validate(i) for i in self._items(f"phrases.{lang}.yaml")]
+
+    def company_suffixes(self) -> list[CompanySuffix]:
+        return [CompanySuffix.model_validate(i) for i in self._items("company_suffixes.yaml")]
+
+    def salary_parsers(self) -> list[SalaryParser]:
+        return []
 
     def onboarding_questions(self, kind: CampaignKind) -> list[Question]:
         qs = [Question.model_validate(i) for i in self._items("questions.yaml")]
@@ -162,9 +195,13 @@ class YamlRegionPack:
 
 __all__ = [
     "SCHEMA_VERSION",
+    "CompanyFrom",
+    "CompanySuffix",
+    "HeaderName",
     "Lang",
     "Milestone",
     "PhraseEntry",
+    "PhraseScope",
     "Question",
     "RegionPack",
     "SalaryParse",

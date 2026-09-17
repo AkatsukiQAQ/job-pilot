@@ -105,6 +105,10 @@ EMAIL_ALLOW_SUFFIXES = (
     "tel.com",
     "facetoface.ne.jp",  # vendor / company senders cited in research
     "sakana.ai",  # appears as a hiring-target company contact address in research digests
+    ".example",
+    ".invalid",
+    ".test",
+    ".localhost",  # RFC 2606 reserved TLDs used by fixtures
 )
 
 

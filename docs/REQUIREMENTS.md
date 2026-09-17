@@ -365,6 +365,10 @@ Phase 1「收件箱到看板」。第一步是 Google Cloud 项目（Gmail + Cal
 | D20 | 多邮箱为核心能力，由用户登录添加，数量不限；Phase 1 即支持 | 用户要求 | 无 |
 | D21 | 阶段顺序按推荐执行，但阶段是检查点而非停顿，开发连续推进 | 用户希望一口气做完 | 无 |
 | D22 | UI 沿用 MITA Finance 设计系统（token、字体、纸感卡片、侧栏、FAB 聊天面板），信息架构与页面重做；UI 三语；设计由 Claude Design 按 `docs/design/claude-design-prompt.md` 产出 | 用户要求与 MITA Finance 风格一致；复用已验证的设计语言省下整套视觉探索 | 可换 token 但保持同一套语法 |
+| D4 附录 | Gmail 走 google-api-python-client + google-auth + google-auth-oauthlib + google-auth-httplib2 + httplib2（带约 8 个间接依赖），静态 discovery 零联网；`client_secret.json` 放 `<data_dir>/secrets/`，顶层键必须为 `installed`；`OAUTHLIB_RELAX_TOKEN_SCOPE` 只在 `auth google` 命令作用域内设置，随后用 `granted_scopes == ALLOWED_SCOPES` 自行断言；只读传输白名单主机为 `gmail.googleapis.com` 与 `oauth2.googleapis.com`（tokeninfo GET、令牌刷新 POST 为唯一 POST 例外） | 官方 SDK 便于测试（HttpMock）与后续 Calendar 复用；薄 httpx 客户端省依赖但要自维护 discovery | 若上游 google-auth-httplib2 移除，`ReadOnlyHttp` 只依赖 `__init__` / `request` 两接口，可在 40 行内改为自写包装 |
+| D23 | Phase 1 在 `pending_actions`（Phase 2）到位前，允许自动新建 `application` 行，条件：分类置信度 ≥ 0.7、公司唯一解析、来源为已核实规则或 LLM；行标 `origin='auto'` 并写审计。歧义或低置信一律进待复核、不建行 | 否则 Phase 1 退出标准「看板列出每一个流程」无法成立；Phase 2 起新建改走提议 / 确认 | Phase 2 收回 |
+| D24 | LLM 统一层用 pydantic-ai-slim（anthropic + openai 扩展），结构化输出优先 NativeOutput（模型支持 JSON schema 输出时），否则 ToolOutput；MCP 用官方 `mcp` 2.x（`mcp.server.mcpserver.MCPServer`，`ToolAnnotations` snake_case 字段）。新增守卫断言放新测试文件，不改 `tests/test_readonly_guard.py` | 调研核实的当前 API；守卫文件按 CLAUDE.md 需用户同意才改 | 用户可要求并入守卫文件 |
+| D25 | Gmail 回填默认跳过 Gmail 分类 `promotions,social`（`JOBPILOT_GMAIL_SKIP_CATEGORIES` 可改）；`jobpilot senders` 显示被跳过类别计数，供用户决定是否只跳过 `social` | 日本就活平台中继邮件常被归入 Promotions，需实测后再定 | 改配置即可 |
 
 ---
 

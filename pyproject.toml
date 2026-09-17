@@ -16,6 +16,12 @@ dependencies = [
   "pyyaml>=6.0.3,<7",                        # region-pack data files (yaml.safe_load)
   "tzdata>=2025.2",                          # zoneinfo has no tz database on Windows (verified locally)
   "pywin32>=312; sys_platform == 'win32'",   # win32crypt / win32cryptcon (DPAPI)
+  # Google read-only connector (decision D4 appendix). Bundled static discovery: zero network at build().
+  "google-api-python-client>=2.200.0,<3",
+  "google-auth>=2.58.0,<3",
+  "google-auth-oauthlib>=1.4.1,<2",          # InstalledAppFlow.run_local_server: loopback + PKCE S256 by default
+  "google-auth-httplib2>=0.4.2,<1",          # AuthorizedHttp base of ReadOnlyHttp (only __init__/request are used)
+  "httplib2>=0.22.0,<1",
 ]
 
 [project.scripts]
