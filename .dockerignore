@@ -1,0 +1,14 @@
+.git
+.venv
+.idea
+.claude
+.pytest_cache
+.ruff_cache
+__pycache__
+data/
+*.db
+*.db-*
+.env
+frontend/node_modules
+docs/
+dist/

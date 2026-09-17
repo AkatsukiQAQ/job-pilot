@@ -1,0 +1,6 @@
+# Region-pack data, schema v1. Every item MUST carry verified + source_url (see stages.yaml).
+# questions.yaml item shape:
+#   {key, text: {ja:..., en:..., zh:...}, category: <profile_facts.category>, kinds: [newgrad|midcareer|...], verified, source_url}
+# Filled in Phase 3 (onboarding questionnaire per campaign kind).
+version: 1
+items: []

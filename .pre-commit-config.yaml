@@ -1,0 +1,28 @@
+# Run with `uv run pre-commit run --all-files` (or `prek run --all-files`; same config).
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.8
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: pyright
+        name: pyright
+        entry: uv run pyright
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: check-pii
+        name: check-pii
+        entry: uv run python scripts/check_pii.py
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: pytest-guards
+        name: pytest-guards
+        entry: uv run pytest -q tests/test_readonly_guard.py tests/test_regions.py
+        language: system
+        pass_filenames: false
+        always_run: true

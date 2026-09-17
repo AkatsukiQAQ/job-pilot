@@ -1,0 +1,9 @@
+# Region-pack data, schema v1. Every item MUST carry:
+#   verified: true|false   -- true only when confirmed against the public source below
+#   source_url: <url>|null -- public documentation / official page; never a private mailbox
+# Unverified items are candidates: they may propose, never auto-apply.
+# stages.yaml item shape:
+#   {code, label: {ja:..., en:..., zh:...}, maps_to: <ApplicationStatus>, tracks: [intern|newgrad|midcareer|other], verified, source_url}
+# Filled in Phase 1 from docs/REQUIREMENTS.md 4.1 / 5.2.
+version: 1
+items: []

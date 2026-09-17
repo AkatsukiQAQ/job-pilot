@@ -1,0 +1,21 @@
+# Local container run. Provide JOBPILOT_FERNET_KEY via the environment or a .env file;
+# the container has no DPAPI / OS keyring, so Fernet is the only token backend.
+services:
+  jobpilot:
+    build: .
+    image: jobpilot:local
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      JOBPILOT_DATA_DIR: /data
+      JOBPILOT_SECRET_BACKEND: fernet
+      JOBPILOT_FERNET_KEY: ${JOBPILOT_FERNET_KEY:?set JOBPILOT_FERNET_KEY (see .env.example)}
+    volumes:
+      - jobpilot-data:/data
+    ports:
+      - "127.0.0.1:8765:8765"
+    command: ["doctor"]
+
+volumes:
+  jobpilot-data:

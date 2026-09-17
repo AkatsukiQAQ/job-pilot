@@ -1,0 +1,4 @@
+# Region pack metadata (schema v1). The only place this pack's default language/timezone lives.
+version: 1
+default_lang: ja
+default_tz: Asia/Tokyo

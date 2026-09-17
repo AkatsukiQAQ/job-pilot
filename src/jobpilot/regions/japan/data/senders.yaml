@@ -1,0 +1,8 @@
+# Region-pack data, schema v1. Every item MUST carry verified + source_url (see stages.yaml).
+# Platform/vendor-level patterns ONLY (navi sites, ATS vendors, test vendors). Company tenants
+# observed in a personal inbox belong in JOBPILOT_DATA_DIR/rules/user_senders.yaml, never here.
+# senders.yaml item shape:
+#   {rule_id, from_pattern: <regex>|null, subject_pattern: <regex>|null, platform, category, gate: bool, verified, source_url}
+# Filled in Phase 1 from docs/research/japan-email-patterns.md (verified entries only auto-apply).
+version: 1
+items: []

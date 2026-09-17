@@ -26,11 +26,32 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 DENYLIST_FILE = REPO / ".pii-denylist.local"
 
-TEXT_SUFFIXES = {".md", ".txt", ".py", ".toml", ".yaml", ".yml", ".json", ".ts", ".tsx", ".js", ".css", ".html", ".env", ".example", ".sql", ".cfg", ".ini"}
+TEXT_SUFFIXES = {
+    ".md",
+    ".txt",
+    ".py",
+    ".toml",
+    ".yaml",
+    ".yml",
+    ".json",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".css",
+    ".html",
+    ".env",
+    ".example",
+    ".sql",
+    ".cfg",
+    ".ini",
+}
 
 # Generic patterns: phrasing that turns research/docs into statements about the author.
 BUILTIN_PATTERNS: list[tuple[str, str]] = [
-    (r"(?i)\bthe user's own (employer|address|domain|company)\b", "statement about the author's employer/address"),
+    (
+        r"(?i)\bthe user's own (employer|address|domain|company)\b",
+        "statement about the author's employer/address",
+    ),
     (r"(?i)\bfor this user\b|\bthis user's\b|\bthis user is\b", "statement about 'this user'"),
     (r"(?i)\bcurrent[- ]affiliation\b", "author affiliation phrasing"),
     (r"(?i)[a-z]:\\\\?Users\\\\?[^\\\s]+", "Windows path containing a username"),
@@ -42,19 +63,55 @@ BUILTIN_PATTERNS: list[tuple[str, str]] = [
 # E-mail addresses are reported unless they belong to a known vendor / platform domain.
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+\.[A-Za-z]{2,})")
 EMAIL_ALLOW_SUFFIXES = (
-    "anthropic.com", "google.com", "googleapis.com", "linkedin.com", "greenhouse.io", "greenhouse-mail.io",
-    "lever.co", "ashbyhq.com", "workablemail.com", "smartrecruiters.com", "myworkday.com", "calendly.com",
-    "indeed.com", "indeedemail.com", "zoom.us", "hirevue.com", "hackerrank.com", "arorua.net", "mynavi.jp",
-    "rikunabi.com", "gaishishukatsu.com", "offerbox.jp", "career-tasu.jp", "career-tasu.co.jp", "wantedly.com",
-    "labbase.jp", "onecareer.jp", "snar.jp", "hrmos.co", "herp.cloud", "talentio.com", "jobcan.ne.jp",
-    "candidates.workablemail.com", "example.com", "example.co.jp", "acme.co.jp", "users.noreply.github.com",
-    "gserviceaccount.com", "bizreach.jp", "tel.com", "facetoface.ne.jp",  # vendor / company senders cited in research
+    "anthropic.com",
+    "google.com",
+    "googleapis.com",
+    "linkedin.com",
+    "greenhouse.io",
+    "greenhouse-mail.io",
+    "lever.co",
+    "ashbyhq.com",
+    "workablemail.com",
+    "smartrecruiters.com",
+    "myworkday.com",
+    "calendly.com",
+    "indeed.com",
+    "indeedemail.com",
+    "zoom.us",
+    "hirevue.com",
+    "hackerrank.com",
+    "arorua.net",
+    "mynavi.jp",
+    "rikunabi.com",
+    "gaishishukatsu.com",
+    "offerbox.jp",
+    "career-tasu.jp",
+    "career-tasu.co.jp",
+    "wantedly.com",
+    "labbase.jp",
+    "onecareer.jp",
+    "snar.jp",
+    "hrmos.co",
+    "herp.cloud",
+    "talentio.com",
+    "jobcan.ne.jp",
+    "candidates.workablemail.com",
+    "example.com",
+    "example.co.jp",
+    "acme.co.jp",
+    "users.noreply.github.com",
+    "gserviceaccount.com",
+    "bizreach.jp",
+    "tel.com",
+    "facetoface.ne.jp",  # vendor / company senders cited in research
     "sakana.ai",  # appears as a hiring-target company contact address in research digests
 )
 
 
 def tracked_files() -> list[Path]:
-    out = subprocess.run(["git", "ls-files", "-z"], cwd=REPO, check=True, capture_output=True).stdout
+    out = subprocess.run(
+        ["git", "ls-files", "-z"], cwd=REPO, check=True, capture_output=True
+    ).stdout
     return [REPO / p for p in out.decode("utf-8", "replace").split("\0") if p]
 
 
@@ -71,7 +128,12 @@ def load_local_denylist() -> list[tuple[re.Pattern[str], str]]:
 
 
 def is_text(path: Path) -> bool:
-    return path.suffix.lower() in TEXT_SUFFIXES or path.name in {"CLAUDE.md", "README.md", ".gitignore", ".gitattributes"}
+    return path.suffix.lower() in TEXT_SUFFIXES or path.name in {
+        "CLAUDE.md",
+        "README.md",
+        ".gitignore",
+        ".gitattributes",
+    }
 
 
 def scan(paths: list[Path]) -> list[str]:
@@ -95,7 +157,9 @@ def scan(paths: list[Path]) -> list[str]:
             for m in EMAIL_RE.finditer(line):
                 domain = m.group(1).lower()
                 if not domain.endswith(EMAIL_ALLOW_SUFFIXES):
-                    problems.append(f"{rel}:{lineno}: e-mail address outside allowlist: {m.group(0)}")
+                    problems.append(
+                        f"{rel}:{lineno}: e-mail address outside allowlist: {m.group(0)}"
+                    )
     return problems
 
 

@@ -29,7 +29,7 @@ Thumbs.db
 # --- Secrets & credentials (never commit) ---
 .env
 .env.*
-!.env.example
+# the shareable template is env.example (no leading dot) so editor/agent rules for .env* never touch it
 *.pem
 *.key
 credentials*.json
@@ -38,7 +38,9 @@ token*.json
 secrets/
 
 # --- Local data (private job-hunting data stays on this machine) ---
-data/
+# anchored: only the repo-root ./data, not src/jobpilot/regions/*/data
+/data/
+dist/
 *.db
 *.sqlite
 *.sqlite3

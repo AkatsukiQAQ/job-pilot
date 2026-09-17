@@ -4,4 +4,73 @@ version = "0.1.0"
 description = "Local-first, read-only-integrated personal job-hunting workbench with AI chat and memory"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+# license / authors intentionally absent until D19 is decided; never a personal e-mail address.
+dependencies = [
+  "typer>=0.27.2,<0.28",                     # >=0.26 vendors Click: never `import click`; use typer.testing.CliRunner
+  "rich>=15.0.0,<16",
+  "pydantic>=2.13.5,<3",
+  "pydantic-settings>=2.15.0,<3",
+  "platformdirs>=4.11.9,<5",                 # user_data_dir("JobPilot", appauthor=False)
+  "keyring>=25.7.0,<26",                     # short keys only (Credential Manager blob limit 2560 bytes)
+  "cryptography>=50.0.1,<51",                # Fernet file store on non-Windows / containers
+  "pyyaml>=6.0.3,<7",                        # region-pack data files (yaml.safe_load)
+  "tzdata>=2025.2",                          # zoneinfo has no tz database on Windows (verified locally)
+  "pywin32>=312; sys_platform == 'win32'",   # win32crypt / win32cryptcon (DPAPI)
+]
+
+[project.scripts]
+jobpilot = "jobpilot.cli:app"
+jobpilot-mcp = "jobpilot.mcp_server:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=9.1.1,<10",
+  "ruff>=0.16.8,<0.17",                      # 0.16 changed default rules + formats Markdown; pin the minor
+  "pyright>=1.1.414,<2",                     # uses Node 22 from PATH locally; CI: pyright[nodejs] or setup-node
+  "pre-commit>=4.6,<5",
+  "types-pyyaml>=6.0.12",
+  "types-pywin32>=310",                      # unconditional: pyright on Linux must resolve win32crypt
+]
+
+[build-system]
+# Local uv is 0.10.7 (pip --user install; `uv self update` is disabled). 0.11.0/0.12.0 release notes
+# report no breaking uv_build config changes, so this range lets uv 0.10.x and 0.12.x both use the
+# built-in backend. Tighten to ">=0.12.x,<0.13" when uv is upgraded everywhere (local, Dockerfile, CI).
+requires = ["uv_build>=0.10.7,<0.13"]
+build-backend = "uv_build"
+# [tool.uv.build-backend] defaults are correct: module-root = "src", module-name = "jobpilot";
+# store/migrations/*.sql and regions/*/data/*.yaml are packaged as module data.
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+extend-exclude = ["docs", "*.md"]           # ruff 0.16 formats Markdown code blocks by default
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "PTH", "RUF", "T20"]
+ignore = ["E501"]                            # long source_url comments in region packs
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["T20"]                        # check_pii.py prints its report
+
+[tool.ruff.lint.isort]
+known-first-party = ["jobpilot"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+include = ["src", "tests", "scripts"]
+venvPath = "."
+venv = ".venv"
+reportMissingModuleSource = "none"           # types-pywin32 present, pywin32 absent on Linux
+
+[tool.pytest]                                # native TOML table (pytest >= 9.0); do NOT also add [tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+strict = true                                # strict_config + strict_markers + strict_parametrization_ids + strict_xfail
+addopts = ["-ra"]
+markers = ["windows_only: needs DPAPI / Windows Credential Manager"]
