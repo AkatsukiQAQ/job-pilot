@@ -21,7 +21,7 @@
 - Python 3.12，uv 管理；`src/jobpilot/` 布局；`uv run pytest`、`uv run ruff check --fix . && uv run ruff format .`、`uv run pyright`、`uv run python scripts/check_pii.py` 提交前通过。
 - 数据库：SQLite + 编号 SQL 迁移（`src/jobpilot/store/migrations/NNNN_*.sql`），标准库 `sqlite3`，Pydantic 行模型。不引入 ORM 除非文档决策更新。
 - 时间存 UTC ISO 字符串，展示按 `JOBPILOT_TZ`。
-- 配置用 pydantic-settings，前缀 `JOBPILOT_`；新增配置项必须同步 `.env.example` 与 `jobpilot init`。密钥只经 `SecretStore`，槽位白名单。
+- 配置用 pydantic-settings，前缀 `JOBPILOT_`；新增配置项必须同步 `env.example`（无前导点，避开 `.env*` 保护规则）与 `jobpilot init`；`tests/test_env_example.py` 会断言两者一致。密钥只经 `SecretStore`，槽位白名单。
 - 每个 Windows 专有实现（DPAPI、schtasks、toast）必须有 Linux 对应或显式降级；不得写入只对首个用户成立的默认值。
 - 日本特有规则放 `src/jobpilot/regions/japan/`，通用规则放 `regions/global_en/`；规则数据文件带 `verified` 与来源 URL。仓库内只收平台 / 供应商级模式；从个人收件箱观察到的公司租户写本地 `JOBPILOT_DATA_DIR/rules/user_senders.yaml`，不入库。
 - 提交信息用英文，正文说明动机；文档中文为主，技术名词保留英文，对外发布前补英文版。

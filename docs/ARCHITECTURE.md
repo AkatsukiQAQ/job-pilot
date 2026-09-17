@@ -111,7 +111,7 @@ flowchart LR
 
 ## 5. 数据模型
 
-数据库路径 `JOBPILOT_DATA_DIR/jobpilot.db`（Windows 默认 `%LOCALAPPDATA%\JobPilot\`）。时间统一存 UTC ISO 字符串，展示按 `JOBPILOT_TZ`。每张表标注引入阶段，与 ROADMAP 的迁移编号对齐：0001 = Phase 1，0002 / 0003 = Phase 2，0004 / 0005 = Phase 3，0006 = Phase 4，0007 = Phase 5。
+数据库路径 `JOBPILOT_DATA_DIR/jobpilot.db`（Windows 默认 `%LOCALAPPDATA%\JobPilot\`）。时间统一存 UTC ISO 字符串，展示按 `JOBPILOT_TZ`。每张表标注引入阶段，与 ROADMAP 的迁移编号对齐：0001 = Phase 0 起、Phase 1 定稿（`campaign` 与 `audit_log` 在 Phase 0 已建；Phase 1 的其余表就地追加到同一文件，此时只有作者本地库，checksum 变化即报错、删库重建；Phase 1 退出标准通过后冻结，之后只加新文件），0002 / 0003 = Phase 2，0004 / 0005 = Phase 3，0006 = Phase 4，0007 = Phase 5。
 
 ### 5.1 追踪域（Phase 1 至 3）
 
@@ -288,7 +288,7 @@ src/jobpilot/regions/
 | 需要「关机也同步」 | 东京 5 美元 VPS（Vultr / Linode / ConoHa）或 Fly.io nrt 机器 + 卷，跑同一镜像，仅经 Tailscale 访问，夜间 `VACUUM INTO` + rclone 异地备份；隐私优先替代：家用 N100 迷你主机；机会主义：Oracle Always Free A1（额度 2 OCPU / 12 GB；建议只开 1 OCPU / 2 GB 或更小，内存越小越容易超过 20% 利用率阈值以避开 7 天闲置回收；接受 out of host capacity 重试；不可依赖） | 0 到 5 美元 / 月 |
 | 浏览器直达（可选） | Cloudflare Tunnel + Access 免费档做登录墙 | 域名约 10 到 11 美元 / 年；Zero Trust Free 需登记付款方式（不收费）；TLS 在 Cloudflare 边缘终止 |
 
-现在就落实的决策：`pydantic-settings` 单一 `Settings`（前缀 `JOBPILOT_`：`DATA_DIR`、`DATABASE_PATH`、`HOST/PORT`、`BASE_URL`、`AUTH_MODE=none|password|proxy`、`TZ`、模型 ID、轮询间隔、`CAMPAIGN_*`）；单一数据目录（数据库、加密令牌、导入、备份、本地规则）；所有同步任务是幂等函数并暴露为 CLI 子命令（`jobpilot sync gmail`），调度器只是薄胶水；游标存库；单进程单写入者显式声明 `workers=1`；Dockerfile（`python:3.12-slim`，`uv sync --frozen`，非 root，`/data` 卷，`/healthz`）多架构构建；结构化 JSON 日志到 stdout，不含正文与地址；`jobpilot backup` / `restore`（SQLite online backup API）。
+现在就落实的决策：`pydantic-settings` 单一 `Settings`（前缀 `JOBPILOT_`：`DATA_DIR`、`DATABASE_PATH`、`HOST/PORT`、`BASE_URL`、`AUTH_MODE=none|password|proxy`、`TZ`、模型 ID、轮询间隔、`CAMPAIGN_*`）；单一数据目录（数据库、加密令牌、导入、备份、本地规则）；所有同步任务是幂等函数并暴露为 CLI 子命令（`jobpilot sync gmail`），调度器只是薄胶水；游标存库；单进程单写入者显式声明 `workers=1`；Dockerfile（`python:3.12-slim`，与本机同版 uv 镜像，`uv sync --locked --no-dev`，非 root，`/data` 卷，`HEALTHCHECK` 跑 `jobpilot doctor --quiet`，Phase 2 起换 `/healthz`）多架构构建；结构化 JSON 日志到 stdout，不含正文与地址；`jobpilot backup` / `restore`（SQLite online backup API）。
 
 ---
 
@@ -313,13 +313,14 @@ src/jobpilot/regions/
 Mita JobPilot/
   pyproject.toml            # uv_build；[project.scripts] jobpilot / jobpilot-mcp；dev 组 pytest ruff pyright
   uv.lock
-  .env.example              # 非机密配置示例
+  env.example               # 非机密配置示例（无前导点，避开 .env* 保护规则）
   Dockerfile  compose.yaml
   CLAUDE.md                 # 面向 AI 协作者的约束与指引
   scripts/check_pii.py      # 提交前身份信息检查
   docs/                     # REQUIREMENTS / ARCHITECTURE / ROADMAP / DESIGN（Phase 2）+ research/ + ref/
   src/jobpilot/
     settings.py  secrets.py  cli.py  mcp_server.py
+    domain.py               # CampaignKind / Track / ApplicationStatus 枚举，Campaign 行模型
     store/{db.py, repo.py, migrations/0001_init.sql ...}
     connectors/{gmail/, gcal/, linkedin_archive/, boards/, websearch/}   # 只读包
     classify/{rules.py, phrases.py, llm.py, schemas.py, prompts/}
@@ -327,11 +328,12 @@ Mita JobPilot/
     actions.py              # propose / confirm / audit
     memory/{facts.py, extract.py, render.py, fts.py}
     search/{dedupe.py, scoring.py, learn.py, research.py}
-    regions/{base.py, global_en/, japan/}
+    regions/{base.py, registry.py, global_en/, japan/}   # 每个包 data/pack.yaml（default_lang, default_tz）+ 6 个规则数据文件
     tools/{registry.py, readonly.py, local_mutations.py}
     web/{app.py, api/}
   frontend/                 # React + TS + Vite + Tailwind（Phase 2 起）
-  tests/
-    test_readonly_guard.py  test_rules.py  test_pipeline.py  fixtures/emails/*.json（匿名化）
+  tests/                    # 是一个包（有 __init__.py），以便 `from tests.conftest import ...`
+    conftest.py  test_smoke.py  test_settings.py  test_db.py  test_secrets.py  test_regions.py
+    test_readonly_guard.py  test_env_example.py  （Phase 1 起）test_rules.py  test_pipeline.py  fixtures/emails/*.json（匿名化）
 运行时数据（仓库外）：JOBPILOT_DATA_DIR/{jobpilot.db, secrets/, imports/, backups/, rules/user_senders.yaml, logs/}
 ```

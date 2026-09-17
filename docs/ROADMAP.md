@@ -29,14 +29,16 @@
 **目标**：把空的 uv 项目变成可打包、可测试、可配置的应用，之后每个阶段都是「加一个迁移 + 一个服务 + 一个 CLI 子命令」。
 
 范围：
-- `uv self update`；`pyproject.toml` 加 `[build-system]`（`uv_build`）、`[project.scripts] jobpilot / jobpilot-mcp`、dev 依赖组（pytest、ruff、pyright）、项目元数据（描述、README；许可与作者在公开前决定，见决策 D19）。
+- 保持本机 uv 0.10.7（它是 pip 安装的，`uv self update` 不可用；如需升级用 `py -m pip install --user -U uv`，并同步 Dockerfile 的 uv 镜像 tag 与重新 `uv lock`）；`pyproject.toml` 加 `[build-system]`（`uv_build>=0.10.7,<0.13`，兼容 0.10 与 0.12）、`[project.scripts] jobpilot / jobpilot-mcp`、dev 依赖组（pytest、ruff、pyright、pre-commit、类型 stub）、运行依赖含 `tzdata`（Windows 无系统时区库）、项目元数据（描述、README；许可与作者在公开前决定，见决策 D19）。
 - `src/jobpilot/settings.py`（pydantic-settings，`JOBPILOT_` 前缀，含 `CAMPAIGN_NAME / _KIND / _REGION_PACK`）、`secrets.py`（`SecretStore` 协议：keyring 存短 key、DPAPI 文件存令牌、env 后端供测试；槽位白名单）。令牌从第一次落盘起就加密。
 - `store/db.py`（连接工厂：WAL、外键、busy_timeout、迁移运行器）、`migrations/0001_init.sql` 空骨架。
 - `regions/base.py` 协议 + `global_en` 与 `japan` 空目录。
 - `campaign` 表 + `jobpilot campaign add --name --kind --region-pack --starts --ends`；迁移文件不含种子数据，作者用命令或 `.env` 创建自己的周期。
-- `.env.example`、`Dockerfile`、`compose.yaml`、pre-commit（ruff、pyright、`scripts/check_pii.py`）。
+- `env.example`、`Dockerfile`、`compose.yaml`、pre-commit（ruff、pyright、`scripts/check_pii.py`）。
 
 退出标准：`uv run jobpilot --help` 可用；`uv run pytest` 通过一个冒烟测试；`uv run ruff check` 与 `pyright` 干净；`campaign add` 创建一条周期并能列出。
+
+**状态：已完成（2026-09-17）。** 实际交付比计划多两项：`0001_init.sql` 同时含 `audit_log`，`campaign add` 在同一事务写审计行（约束 5）；`doctor` 命令报告环境、schema 版本、FTS5、生效时区及来源、密钥后端、区域包、活动周期与模型配置。43 个测试通过，ruff / pyright / pre-commit / `check_pii` 全绿，wheel 含全部迁移与区域包数据文件。
 
 ---
 
@@ -212,7 +214,7 @@
 
 | 场次 | 时长 | 内容 |
 |---|---|---|
-| 1 | 2.5 h | Google Cloud 项目、两个只读范围、Desktop 客户端、`client_secret.json` 放到数据目录 `secrets/`。`uv self update`；`pyproject.toml` 构建后端、脚本入口、元数据；`src/jobpilot/__init__.py`；`uv add` 核心依赖；`settings.py`、`secrets.py`（DPAPI 令牌后端）、`readonly_http.py`、`auth.py`；`uv run jobpilot auth google` 完成 loopback 授权并断言范围；`jobpilot campaign add` 创建首个周期。 |
+| 1 | 2.5 h | Google Cloud 项目、两个只读范围、Desktop 客户端、`client_secret.json` 放到数据目录 `secrets/`。Phase 0 骨架已完成（2026-09-17）；`uv add` Google 依赖；`readonly_http.py`、`auth.py`；`uv run jobpilot auth google` 完成 loopback 授权并断言范围；`jobpilot campaign add` 创建首个周期。 |
 | 2 | 3 h | `store/db.py` + 迁移 0001（含 `pii_aliases`）；`connectors/gmail/sync.py` 回填；`uv run jobpilot sync --backfill-days 180`；`jobpilot senders`，阅读输出：平台级模式进 `regions/japan/senders.yaml`（附公开来源），公司租户进本地 `user_senders.yaml`。 |
 | 3 | 3 h | 规则表与短语表（日本包 + 全球包，带 `verified`）；`EmailClassification` schema；放行门；`tests/test_rules.py` 10 到 20 条匿名夹具；`history.list` 增量与 404 回退；`jobpilot watch`。提交。 |
 | 4 | 3 h | `classify/llm.py`（pydantic-ai 结构化输出，PII 别名，截断，缓存，成本日志，提示注入分块）；对回填中放行 / 含糊邮件跑一遍；抽 30 条复核，修提示词或规则。API key 入 keyring。 |

@@ -161,7 +161,7 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 - **可靠性**：单文件 SQLite + WAL；每日备份到第二位置；同步游标持久化，任意时刻中断可恢复；信息源状态可见。
 - **成本**：LLM 分类走缓存（同一邮件同一提示词版本不重复计费）；批量分类默认用便宜模型；每次调用记录 token 与费用。
 - **多语言**：中 / 日 / 英；NFKC 归一化、全角半角、法人后缀（株式会社、(株)、Inc.、K.K.）处理；FTS 对 CJK 用 trigram。
-- **时区**：存 UTC，展示按配置时区（默认 Asia/Tokyo）。
+- **时区**：存 UTC，展示按 `JOBPILOT_TZ`；未配置时取活动求职周期所属区域包的默认时区（日本包为 Asia/Tokyo），再无则 UTC。代码里不写死任何时区。
 
 ---
 
@@ -320,11 +320,11 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 
 ### 7.1 仓库
 
-- `pyproject.toml`：uv 初始化的项目，Python ≥ 3.12，无依赖，尚无 `src/` 与构建后端。
+- `pyproject.toml`：packaged `src/` 布局，`uv_build` 后端，控制台入口 `jobpilot` 与 `jobpilot-mcp`，运行依赖 typer / rich / pydantic / pydantic-settings / platformdirs / keyring / cryptography / pyyaml / tzdata / pywin32（仅 Windows），dev 组 pytest / ruff / pyright / pre-commit / stubs；`uv.lock` 完整锁定。
 - `.venv/`：uv 0.10.7 创建的 CPython 3.12.12。本机 SQLite 3.50.4，FTS5 与扩展加载可用（已实测）。
 - Git：已初始化，分支 `main`。`.gitignore` 排除 `.venv/`、`.idea/`、`.claude/settings.local.json`、`.env`、令牌与凭据文件、`data/`、`imports/`、`backups/`、`*.db`、LinkedIn 导出 ZIP。
 - 工具链：uv 0.10.7、Node 22.17、git、PyCharm。
-- 代码：**零行**。`scripts/check_pii.py` 是唯一脚本，用于提交前检查仓库文件里的身份信息。
+- 代码：**Phase 0 骨架已完成（2026-09-17）**。`src/jobpilot/` 含 `settings.py`（`JOBPILOT_` 配置，无个人默认值）、`secrets.py`（槽位白名单 + keyring / DPAPI / Fernet / env 后端）、`domain.py`（周期类型、track、12 态应聘状态枚举）、`store/`（连接工厂、带 checksum 的迁移运行器、`0001_init.sql` 含 `campaign` 与 `audit_log`、`CampaignRepo`）、`regions/`（`RegionPack` 协议、注册表、`global_en` 与 `japan` 两个 YAML 驱动的包，时区与语言只在 `data/pack.yaml`）、`connectors/`（只读空壳）、`cli.py`（`campaign add / list`、`init`、`doctor`、`version`）、`mcp_server.py`（Phase 1 占位）。`tests/` 8 个文件 43 个用例，含只读守卫与「核心代码无地区 / 周期字面量」扫描。`scripts/check_pii.py` 在 pre-commit 中运行。
 
 ### 7.2 本次完成
 
@@ -335,7 +335,7 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 
 ### 7.3 下一步
 
-见 ROADMAP.md「第一周计划」。第一步是把空项目转成 `src/` 布局并完成 Google Cloud 项目与只读 OAuth 授权。
+Phase 1「收件箱到看板」。第一步是 Google Cloud 项目（Gmail + Calendar API、两个只读范围、Desktop OAuth 客户端）与 `jobpilot auth google`，见 ROADMAP.md Phase 1 与「第一周计划」。UI 设计由 Claude Design 按 `docs/design/claude-design-prompt.md` 并行推进。
 
 ---
 

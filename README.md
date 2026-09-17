@@ -3,7 +3,7 @@
 本地优先、只读接入外部信息源、带 AI 对话与记忆的个人求职工作台。
 A local-first, read-only-integrated personal job-hunting workbench with an AI chat and memory layer.
 
-> 状态：需求与架构定稿中，尚无代码（2026-09-16）。
+> 状态：Phase 0 骨架完成（配置、密钥存储、迁移、区域包、CLI），Phase 1「收件箱到看板」进行中（2026-09-17）。
 
 ## 它做什么
 
@@ -32,6 +32,20 @@ A local-first, read-only-integrated personal job-hunting workbench with an AI ch
 - Windows 11 是首个开发与运行平台；架构按 Linux / 容器可迁移设计。
 
 ```bash
-uv sync
-uv run jobpilot --help   # Phase 0 之后可用
+uv sync                                   # 安装运行与开发依赖（uv 0.10.x）
+uv run jobpilot --help
+uv run jobpilot campaign add --name demo --kind other --region-pack global_en
+uv run jobpilot doctor                    # 环境、schema、时区、密钥后端、区域包
+```
+
+配置通过 `JOBPILOT_*` 环境变量或 `.env` 文件提供，全部键见 `env.example`。数据目录默认在平台用户数据目录（Windows 为 `%LOCALAPPDATA%\JobPilot`），可用 `JOBPILOT_DATA_DIR` 覆盖。
+
+提交前检查（pre-commit 会自动跑同一组）：
+
+```bash
+uv run pytest
+uv run ruff check --fix . && uv run ruff format .
+uv run pyright
+uv run python scripts/check_pii.py
+uv run pre-commit install                 # 一次性；本机也可用 prek 跑同一份配置
 ```
