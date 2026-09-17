@@ -15,7 +15,7 @@
 |---|---|---|---|
 | 0 | 骨架 | `src/` 布局、配置、密钥（含 DPAPI 令牌后端）、迁移器、区域包协议、CI 基线 | 1 到 2 个晚上 |
 | 1 | 收件箱到看板 | Gmail 只读同步 → 三层分类 → SQLite → `jobpilot board` + 只读 MCP | 7 到 9 个晚上（约 1.5 到 2 周，含验收与浸泡） |
-| 2 | 可信与可控 | 提议 / 确认写入、LinkedIn 导出导入、待复核队列、提醒、备份、`DESIGN.md`、只读看板 Web UI | 2 周 |
+| 2 | 可信与可控 | 提议 / 确认写入、LinkedIn 导出导入、待复核队列、提醒、备份、`DESIGN.md`（Claude Design 产出，可与 Phase 0 / 1 并行）、只读看板 Web UI | 2 周 |
 | 3 | 日历与记忆 v1 | Calendar 面试事件、`profile_facts` 与收件箱、按周期类型的引导问卷、历史聊天导入、响应式验收 | 1.5 到 2 周 |
 | 4 | 岗位搜索 v1 | 只读岗位源、目击台账与核验、去重、硬过滤 + 软分 + LLM 重排、研究请求、评估粘贴岗位、并排比较 | 2 到 3 周 |
 | 5 | 应用内对话与语音 | 提供商切换、流式、确认卡片、按住说话、语音操作、会话记忆与情节摘要 | 3 周 |
@@ -76,7 +76,7 @@
 **目标**：看板可信、可改；LinkedIn 官方导出补上 Gmail 看不到的申请；用户可通过聊天 / 语音 / CLI 改状态、记申请，全部经确认门；有每日摘要与提醒；有备份；有设计文档；有一个每天愿意打开的只读 Web 看板。
 
 范围：
-- **`docs/DESIGN.md`（前置交付物）**：Mita JobPilot 自己的信息架构（侧栏导航树：看板 / 岗位 / 面试 / 记忆收件箱 / 待复核 / 信息源 / 设置）、5 到 8 条核心用户流程（新邮件 → 看板变更 → 复核；粘贴 JD → 评估 → 记录申请；语音改状态 → 确认卡片；门户回填；多周期切换；研究请求 → 回填）、页面与组件清单、design tokens（色板、字号、间距、状态色，含金色「待确认」）。
+- **`docs/DESIGN.md`（前置交付物）**：由 Claude Design 按 `docs/design/claude-design-prompt.md` 分批产出（tokens.css、信息架构与 8 条流程、13 页 HTML 原型 + 2 张手机版、组件规范、三语字典），落到 `docs/design/output/` 后蒸馏成本文件；设计语言沿用 MITA Finance（D22）。可与 Phase 0 / 1 并行进行，不阻塞后端。
 - 迁移 0002 / 0003：`source_import` + `li_*`、`pending_actions`、`egress_log`。`jobpilot import linkedin <zip>`（表头驱动、自然键幂等、原 ZIP 归档、Easy Apply 合并为 `application(channel='linkedin_easy_apply')`）；应用内下载清单与「Did you apply? 一律答是」提示；LinkedIn 邮件通知设置提醒。
 - `actions.py` 与提议 / 确认 MCP 工具；CLI 对应 `set-status / log / note / exclude / merge / split`；优先级矩阵；含糊匹配 → `candidates_json`。
 - `jobpilot review`：走查待复核分类，接受 / 拒绝回写 `user_confirmed` 与 `rule_stat`；规则三档精度门槛生效。
@@ -201,7 +201,7 @@
 - UI 文案 i18n（zh / ja / en），文档英文版。
 - **文档脱敏**：逐文件清理 `docs/research` 中「the user's own / this user / for the user」及雇主、签证、机器路径表述；`scripts/check_pii.py` 作为 pre-commit hook，对 tracked 文件匹配内置模式与本地 denylist，命中即拒绝提交。
 - 匿名化夹具与示例数据集（虚构公司），CI 跑全部守卫测试。
-- 许可、贡献指南、安全披露说明、隐私与提供商条款提醒；`pyproject.toml` 元数据补齐（作者不填个人邮箱）；公开前决定是否把提交身份改为 GitHub noreply 地址（D19）。
+- 许可、贡献指南、安全披露说明、隐私与提供商条款提醒；`pyproject.toml` 元数据补齐（作者不填个人邮箱）；确认全部提交作者均为 GitHub noreply 地址（D19，已于 2026-09-17 切换）。
 - 去除任何针对首个用户的默认值。
 
 退出标准：一位没参与开发的人按 README 在另一台机器上完成安装、授权、回填并看到看板；`uv run scripts/check_pii.py` 在全量 tracked 文件上零命中。
