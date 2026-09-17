@@ -29,7 +29,7 @@ Poll each watched company's public board via the ATS vendor's documented unauthe
 Pros:
   - Zero auth, zero cost, official docs; GET-only so inherently read-only
   - Full HTML descriptions, stable native IDs, structured location/department/remote/compensation (Ashby, Recruitee, Greenhouse pay_input_ranges, Lever salaryRange)
-  - Freshest possible signal (no aggregator delay); ideal for 'track every process I am in' because the user's target companies are known
+  - Freshest possible signal (no aggregator delay); ideal for 'track every process I am in' because the example target roles companies are known
   - One integration per ATS covers every customer of that ATS
 Cons:
   - Requires discovering each company's ATS and board token (from careers-page URL or HTML)

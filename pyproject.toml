@@ -1,6 +1,7 @@
 [project]
 name = "jobpilot"
 version = "0.1.0"
-description = "Add your description here"
+description = "Local-first, read-only-integrated personal job-hunting workbench with AI chat and memory"
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []

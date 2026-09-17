@@ -47,3 +47,17 @@ data/
 *.db-shm
 logs/
 *.log
+
+# encrypted tokens, raw imports, backups (belong in JOBPILOT_DATA_DIR, never in the repo)
+*.dpapi
+imports/
+backups/
+*_LinkedInDataExport_*.zip
+*.mbox
+user_senders.yaml
+
+# local PII denylist for scripts/check_pii.py (contains the author's own identifiers)
+.pii-denylist.local
+
+# Claude Code project MCP config may embed absolute paths / env
+.mcp.json
