@@ -1,0 +1,1027 @@
+{
+  "action.accept": {
+    "zh": "接受",
+    "ja": "承認",
+    "en": "Accept"
+  },
+  "action.add_application": {
+    "zh": "添加申请",
+    "ja": "選考を追加",
+    "en": "Add application"
+  },
+  "action.cancel": {
+    "zh": "取消",
+    "ja": "キャンセル",
+    "en": "Cancel"
+  },
+  "action.change_status": {
+    "zh": "改状态",
+    "ja": "ステータス変更",
+    "en": "Change status"
+  },
+  "action.confirm": {
+    "zh": "确认",
+    "ja": "確認",
+    "en": "Confirm"
+  },
+  "action.correct": {
+    "zh": "修正…",
+    "ja": "修正…",
+    "en": "Correct…"
+  },
+  "action.expand": {
+    "zh": "展开",
+    "ja": "展開",
+    "en": "Expand"
+  },
+  "action.go_to_application": {
+    "zh": "跳到申请",
+    "ja": "選考を開く",
+    "en": "Go to application"
+  },
+  "action.log_event": {
+    "zh": "记事件",
+    "ja": "イベントを記録",
+    "en": "Log event"
+  },
+  "action.new_cycle": {
+    "zh": "新建周期",
+    "ja": "サイクルを新規作成",
+    "en": "New cycle"
+  },
+  "action.open": {
+    "zh": "打开",
+    "ja": "開く",
+    "en": "Open"
+  },
+  "action.open_portal": {
+    "zh": "前往官方入口",
+    "ja": "公式ページへ",
+    "en": "Open official portal"
+  },
+  "action.record_outcome": {
+    "zh": "回填结果",
+    "ja": "結果を記録",
+    "en": "Record outcome"
+  },
+  "action.save": {
+    "zh": "保存",
+    "ja": "保存",
+    "en": "Save"
+  },
+  "action.save_note": {
+    "zh": "保存为事件",
+    "ja": "イベントとして保存",
+    "en": "Save as event"
+  },
+  "action.set_current": {
+    "zh": "设为当前",
+    "ja": "現在に設定",
+    "en": "Set as current"
+  },
+  "application.append_only": {
+    "zh": "只追加，不删除",
+    "ja": "追記のみ・削除なし",
+    "en": "Append-only"
+  },
+  "application.belongs_to": {
+    "zh": "这条申请属于",
+    "ja": "この選考の所属サイクル：",
+    "en": "This application belongs to"
+  },
+  "application.interviews": {
+    "zh": "面试",
+    "ja": "面接",
+    "en": "Interviews"
+  },
+  "application.notes": {
+    "zh": "备注",
+    "ja": "メモ",
+    "en": "Notes"
+  },
+  "application.notes_placeholder": {
+    "zh": "写点什么…",
+    "ja": "メモを書く…",
+    "en": "Write a note…"
+  },
+  "application.portal": {
+    "zh": "门户待查看",
+    "ja": "マイページ確認",
+    "en": "Portal to check"
+  },
+  "application.switch_to": {
+    "zh": "切换到",
+    "ja": "に切り替える",
+    "en": "Switch to"
+  },
+  "application.timeline": {
+    "zh": "事件时间线",
+    "ja": "イベントタイムライン",
+    "en": "Event timeline"
+  },
+  "brand.name": {
+    "zh": "Mita JobPilot",
+    "ja": "Mita JobPilot",
+    "en": "Mita JobPilot"
+  },
+  "brand.subtitle": {
+    "zh": "你的求职副驾",
+    "ja": "あなたの就活コパイロット",
+    "en": "Your job-hunt copilot"
+  },
+  "confirm.after": {
+    "zh": "变化后",
+    "ja": "変更後",
+    "en": "After"
+  },
+  "confirm.before": {
+    "zh": "变化前",
+    "ja": "変更前",
+    "en": "Before"
+  },
+  "confirm.change_to": {
+    "zh": "将用户状态改为",
+    "ja": "ユーザー状態を変更",
+    "en": "Set user status to"
+  },
+  "confirm.done": {
+    "zh": "已确认",
+    "ja": "確認済み",
+    "en": "Confirmed"
+  },
+  "confirm.eyebrow": {
+    "zh": "提议",
+    "ja": "提案",
+    "en": "Proposal"
+  },
+  "confirm.note_override": {
+    "zh": "用户状态会覆盖自动状态",
+    "ja": "ユーザー状態が自動ステータスを上書きします",
+    "en": "The user status overrides the auto status"
+  },
+  "cycle.current": {
+    "zh": "当前",
+    "ja": "現在",
+    "en": "Current"
+  },
+  "cycle.manage": {
+    "zh": "管理周期…",
+    "ja": "サイクルを管理…",
+    "en": "Manage cycles…"
+  },
+  "dashboard.by_displayed_status": {
+    "zh": "按显示状态计",
+    "ja": "表示ステータスで集計",
+    "en": "by displayed status"
+  },
+  "dashboard.greeting.intern": {
+    "zh": "下午好，先看今天要做的事",
+    "ja": "こんにちは、まずは今日のことから",
+    "en": "Good afternoon, let’s start with today"
+  },
+  "dashboard.greeting.mid": {
+    "zh": "下午好，跳槽的事一步一步来",
+    "ja": "こんにちは、転職も一歩ずつ",
+    "en": "Good afternoon, one step at a time"
+  },
+  "dashboard.greeting.newgrad": {
+    "zh": "下午好，先看今天要做的事",
+    "ja": "こんにちは、まずは今日のことから",
+    "en": "Good afternoon, let’s start with today"
+  },
+  "dashboard.kpi.active": {
+    "zh": "进行中流程",
+    "ja": "進行中の選考",
+    "en": "Active processes"
+  },
+  "dashboard.kpi.active_sub": {
+    "zh": "按显示状态计",
+    "ja": "表示ステータスで集計",
+    "en": "By displayed status"
+  },
+  "dashboard.kpi.deadlines": {
+    "zh": "本周截止",
+    "ja": "今週の締切",
+    "en": "Due this week"
+  },
+  "dashboard.kpi.deadlines_sub": {
+    "zh": "周一至周日",
+    "ja": "月曜〜日曜",
+    "en": "Mon–Sun"
+  },
+  "dashboard.kpi.interviews": {
+    "zh": "7 天内面试",
+    "ja": "7 日以内の面接",
+    "en": "Interviews in 7 days"
+  },
+  "dashboard.kpi.interviews_sub": {
+    "zh": "另有 {n} 场待排期",
+    "ja": "ほか {n} 件が日程未定",
+    "en": "Plus {n} to be scheduled"
+  },
+  "dashboard.kpi.review": {
+    "zh": "待复核",
+    "ja": "要レビュー",
+    "en": "Needs review"
+  },
+  "dashboard.kpi.review_sub": {
+    "zh": "在申请详情里处理",
+    "ja": "選考詳細で処理",
+    "en": "Handle in application details"
+  },
+  "dashboard.section.distribution": {
+    "zh": "状态分布",
+    "ja": "ステータス分布",
+    "en": "Status distribution"
+  },
+  "dashboard.section.recent": {
+    "zh": "最近变化",
+    "ja": "最近の変化",
+    "en": "Recent changes"
+  },
+  "dashboard.section.sources": {
+    "zh": "信息源",
+    "ja": "データソース",
+    "en": "Sources"
+  },
+  "dashboard.section.tips": {
+    "zh": "Mita 的提醒",
+    "ja": "Mita からのメモ",
+    "en": "Notes from Mita"
+  },
+  "dashboard.section.today": {
+    "zh": "今日与本周",
+    "ja": "今日と今週",
+    "en": "Today and this week"
+  },
+  "dashboard.section.upcoming": {
+    "zh": "后续面试",
+    "ja": "今後の面接",
+    "en": "Upcoming interviews"
+  },
+  "empty.cycle_body": {
+    "zh": "先添加一条申请，看板会随之出现待办与面试。",
+    "ja": "まず選考を追加すると、ToDo と面接がここに表示されます。",
+    "en": "Add an application first; to-dos and interviews will appear here."
+  },
+  "empty.cycle_title": {
+    "zh": "这个周期还没有申请记录",
+    "ja": "このサイクルにはまだ選考がありません",
+    "en": "No applications in this cycle yet"
+  },
+  "empty.pipeline_body": {
+    "zh": "换个筛选条件，或添加一条新申请。",
+    "ja": "条件を変えるか、新しい選考を追加してください。",
+    "en": "Try another filter, or add a new application."
+  },
+  "empty.pipeline_title": {
+    "zh": "没有匹配的申请",
+    "ja": "該当する選考はありません",
+    "en": "No matching applications"
+  },
+  "empty.review_title": {
+    "zh": "没有需要复核的识别",
+    "ja": "レビューが必要な項目はありません",
+    "en": "Nothing needs review"
+  },
+  "empty.sources_body": {
+    "zh": "Gmail · Calendar · LinkedIn 导出 将在后续版本接入；目前所有记录都是手动录入。",
+    "ja": "Gmail · Calendar · LinkedIn エクスポートは今後のバージョンで対応。現在はすべて手動入力です。",
+    "en": "Gmail, Calendar and LinkedIn export arrive in a later version; for now every record is entered by hand."
+  },
+  "empty.sources_title": {
+    "zh": "第一版尚未接入信息源",
+    "ja": "初版ではデータソース未接続",
+    "en": "No sources in this first version"
+  },
+  "event.confidence": {
+    "zh": "置信度",
+    "ja": "信頼度",
+    "en": "Confidence"
+  },
+  "event.confirm": {
+    "zh": "申请确认",
+    "ja": "応募受付",
+    "en": "Application confirmed"
+  },
+  "event.email": {
+    "zh": "邮件",
+    "ja": "メール",
+    "en": "Email"
+  },
+  "event.interview_scheduled": {
+    "zh": "面试安排",
+    "ja": "面接日程",
+    "en": "Interview scheduled"
+  },
+  "event.invite": {
+    "zh": "面试邀请",
+    "ja": "面接案内",
+    "en": "Interview invite"
+  },
+  "event.note": {
+    "zh": "备注",
+    "ja": "メモ",
+    "en": "Note"
+  },
+  "event.portal_notice": {
+    "zh": "门户通知",
+    "ja": "マイページ通知",
+    "en": "Portal notice"
+  },
+  "event.portal_outcome": {
+    "zh": "门户结果",
+    "ja": "マイページ結果",
+    "en": "Portal outcome"
+  },
+  "event.received": {
+    "zh": "收到",
+    "ja": "受信",
+    "en": "Received"
+  },
+  "event.record": {
+    "zh": "记录申请",
+    "ja": "応募を記録",
+    "en": "Application recorded"
+  },
+  "event.status_change_user": {
+    "zh": "状态变更（用户）",
+    "ja": "ステータス変更（ユーザー）",
+    "en": "Status change (user)"
+  },
+  "event.subject": {
+    "zh": "邮件主题",
+    "ja": "件名",
+    "en": "Subject"
+  },
+  "filter.all": {
+    "zh": "全部",
+    "ja": "すべて",
+    "en": "All"
+  },
+  "filter.keyword_placeholder": {
+    "zh": "公司或岗位…",
+    "ja": "会社名・職種…",
+    "en": "Company or role…"
+  },
+  "filter.track": {
+    "zh": "Track",
+    "ja": "Track",
+    "en": "Track"
+  },
+  "form.added": {
+    "zh": "已添加",
+    "ja": "追加しました",
+    "en": "Added"
+  },
+  "form.company_placeholder": {
+    "zh": "公司名（原文）",
+    "ja": "会社名（原文）",
+    "en": "Company (as written)"
+  },
+  "form.event_summary": {
+    "zh": "摘要",
+    "ja": "要約",
+    "en": "Summary"
+  },
+  "form.event_time": {
+    "zh": "时间",
+    "ja": "日時",
+    "en": "Time"
+  },
+  "form.event_type": {
+    "zh": "事件类型",
+    "ja": "イベント種別",
+    "en": "Event type"
+  },
+  "form.initial_status": {
+    "zh": "初始状态",
+    "ja": "初期ステータス",
+    "en": "Initial status"
+  },
+  "form.job_url": {
+    "zh": "岗位链接",
+    "ja": "求人リンク",
+    "en": "Job URL"
+  },
+  "form.required_note": {
+    "zh": "公司与岗位为必填",
+    "ja": "会社名と職種は必須です",
+    "en": "Company and role are required"
+  },
+  "form.role_placeholder": {
+    "zh": "岗位名（原文）",
+    "ja": "職種名（原文）",
+    "en": "Role (as written)"
+  },
+  "form.source_note": {
+    "zh": "来源将记为「手动」",
+    "ja": "ソースは「手動」として記録されます",
+    "en": "Source will be recorded as Manual"
+  },
+  "form.summary_placeholder": {
+    "zh": "发生了什么…",
+    "ja": "何があったか…",
+    "en": "What happened…"
+  },
+  "form.time_placeholder": {
+    "zh": "2026-10-01（水）14:00",
+    "ja": "2026-10-01（水）14:00",
+    "en": "2026-10-01（水）14:00"
+  },
+  "form.url_placeholder": {
+    "zh": "https://…",
+    "ja": "https://…",
+    "en": "https://…"
+  },
+  "ghosted.label": {
+    "zh": "长期沉默",
+    "ja": "長期間応答なし",
+    "en": "Gone quiet"
+  },
+  "interview.confirmed": {
+    "zh": "已确认",
+    "ja": "確定",
+    "en": "Confirmed"
+  },
+  "interview.from_email": {
+    "zh": "邮件原文",
+    "ja": "メール原文",
+    "en": "From the email"
+  },
+  "interview.none_unscheduled": {
+    "zh": "暂无待排期",
+    "ja": "日程未定の面接はありません",
+    "en": "Nothing waiting to be scheduled"
+  },
+  "interview.online": {
+    "zh": "线上",
+    "ja": "オンライン",
+    "en": "Online"
+  },
+  "interview.onsite": {
+    "zh": "线下",
+    "ja": "対面",
+    "en": "On-site"
+  },
+  "interview.reply_by": {
+    "zh": "回复期限",
+    "ja": "回答期限",
+    "en": "Reply by"
+  },
+  "interview.unscheduled": {
+    "zh": "待排期",
+    "ja": "日程未定",
+    "en": "To be scheduled"
+  },
+  "lang.en": {
+    "zh": "English",
+    "ja": "English",
+    "en": "English"
+  },
+  "lang.ja": {
+    "zh": "日本語",
+    "ja": "日本語",
+    "en": "日本語"
+  },
+  "lang.short_en": {
+    "zh": "EN",
+    "ja": "EN",
+    "en": "EN"
+  },
+  "lang.short_ja": {
+    "zh": "日",
+    "ja": "日",
+    "en": "日"
+  },
+  "lang.short_zh": {
+    "zh": "中",
+    "ja": "中",
+    "en": "中"
+  },
+  "lang.zh": {
+    "zh": "简体中文",
+    "ja": "简体中文",
+    "en": "简体中文"
+  },
+  "nav.chat": {
+    "zh": "对话",
+    "ja": "チャット",
+    "en": "Chat"
+  },
+  "nav.collapse": {
+    "zh": "收起",
+    "ja": "折りたたむ",
+    "en": "Collapse"
+  },
+  "nav.dashboard": {
+    "zh": "看板",
+    "ja": "ダッシュボード",
+    "en": "Dashboard"
+  },
+  "nav.interviews": {
+    "zh": "面试",
+    "ja": "面接",
+    "en": "Interviews"
+  },
+  "nav.jobs": {
+    "zh": "岗位",
+    "ja": "求人",
+    "en": "Jobs"
+  },
+  "nav.memory": {
+    "zh": "记忆收件箱",
+    "ja": "メモリー受信箱",
+    "en": "Memory inbox"
+  },
+  "nav.pipeline": {
+    "zh": "申请 Pipeline",
+    "ja": "選考 Pipeline",
+    "en": "Pipeline"
+  },
+  "nav.research": {
+    "zh": "研究请求",
+    "ja": "リサーチ依頼",
+    "en": "Research requests"
+  },
+  "nav.review": {
+    "zh": "待复核",
+    "ja": "要レビュー",
+    "en": "Needs review"
+  },
+  "nav.section.inbox": {
+    "zh": "收件",
+    "ja": "受信",
+    "en": "Inbox"
+  },
+  "nav.section.system": {
+    "zh": "系统",
+    "ja": "システム",
+    "en": "System"
+  },
+  "nav.section.work": {
+    "zh": "工作",
+    "ja": "ワーク",
+    "en": "Work"
+  },
+  "nav.settings": {
+    "zh": "设置",
+    "ja": "設定",
+    "en": "Settings"
+  },
+  "nav.soon": {
+    "zh": "Soon",
+    "ja": "Soon",
+    "en": "Soon"
+  },
+  "nav.sources": {
+    "zh": "信息源",
+    "ja": "データソース",
+    "en": "Sources"
+  },
+  "next.deadline": {
+    "zh": "截止",
+    "ja": "締切",
+    "en": "Deadline"
+  },
+  "next.interview": {
+    "zh": "面试",
+    "ja": "面接",
+    "en": "Interview"
+  },
+  "next.reply": {
+    "zh": "回复期限",
+    "ja": "回答期限",
+    "en": "Reply by"
+  },
+  "override.label": {
+    "zh": "已手动覆盖",
+    "ja": "手動で上書き",
+    "en": "Manually overridden"
+  },
+  "pending.date": {
+    "zh": "日期待确认",
+    "ja": "日付は未確認",
+    "en": "Date unconfirmed"
+  },
+  "pending.generic": {
+    "zh": "待确认",
+    "ja": "未確認",
+    "en": "Unconfirmed"
+  },
+  "pending.link": {
+    "zh": "会议链接待确认",
+    "ja": "会議リンクは未確認",
+    "en": "Meeting link unconfirmed"
+  },
+  "pending.time": {
+    "zh": "时间待确认",
+    "ja": "時間は未確認",
+    "en": "Time unconfirmed"
+  },
+  "pending.tool": {
+    "zh": "工具待确认",
+    "ja": "ツールは未確認",
+    "en": "Tool unconfirmed"
+  },
+  "pipeline.empty_rest": {
+    "zh": "其余状态暂无申请",
+    "ja": "その他のステータスに該当なし",
+    "en": "No applications in the other states"
+  },
+  "pipeline.title": {
+    "zh": "申请 Pipeline",
+    "ja": "選考 Pipeline",
+    "en": "Pipeline"
+  },
+  "placeholder.coming_soon": {
+    "zh": "即将推出",
+    "ja": "近日公開",
+    "en": "Coming soon"
+  },
+  "placeholder.coming_soon_sources": {
+    "zh": "第一版尚未接入 Gmail · Calendar",
+    "ja": "初版では Gmail · Calendar は未接続",
+    "en": "Gmail · Calendar are not connected in this first version"
+  },
+  "placeholder.coming_soon_tips": {
+    "zh": "第一版尚未接入 AI 提醒",
+    "ja": "初版では AI メモは未対応",
+    "en": "AI notes are not part of this first version"
+  },
+  "region.eu": {
+    "zh": "欧洲",
+    "ja": "欧州",
+    "en": "Europe"
+  },
+  "region.generic": {
+    "zh": "通用",
+    "ja": "汎用",
+    "en": "Generic"
+  },
+  "region.jp": {
+    "zh": "日本",
+    "ja": "日本",
+    "en": "Japan"
+  },
+  "region.us": {
+    "zh": "美国",
+    "ja": "米国",
+    "en": "United States"
+  },
+  "review.confirmed_by_user": {
+    "zh": "已人工确认",
+    "ja": "手動で確認済み",
+    "en": "Confirmed manually"
+  },
+  "review.tag": {
+    "zh": "待复核",
+    "ja": "要レビュー",
+    "en": "Needs review"
+  },
+  "settings.applications": {
+    "zh": "申请数",
+    "ja": "選考数",
+    "en": "Applications"
+  },
+  "settings.cycle_added": {
+    "zh": "已创建周期",
+    "ja": "サイクルを作成しました",
+    "en": "Cycle created"
+  },
+  "settings.cycle_name": {
+    "zh": "名称",
+    "ja": "名称",
+    "en": "Name"
+  },
+  "settings.cycle_name_placeholder": {
+    "zh": "如 2027 新卒",
+    "ja": "例：2027 新卒",
+    "en": "e.g. 2027 New grad"
+  },
+  "settings.cycle_type": {
+    "zh": "类型",
+    "ja": "種別",
+    "en": "Type"
+  },
+  "settings.cycles": {
+    "zh": "求职周期",
+    "ja": "就活サイクル",
+    "en": "Job-hunt cycles"
+  },
+  "settings.end": {
+    "zh": "结束",
+    "ja": "終了",
+    "en": "End"
+  },
+  "settings.month_placeholder": {
+    "zh": "2026-03",
+    "ja": "2026-03",
+    "en": "2026-03"
+  },
+  "settings.region": {
+    "zh": "区域包",
+    "ja": "地域パック",
+    "en": "Region pack"
+  },
+  "settings.seg_settings": {
+    "zh": "设置",
+    "ja": "設定",
+    "en": "Settings"
+  },
+  "settings.seg_sources": {
+    "zh": "信息源",
+    "ja": "データソース",
+    "en": "Sources"
+  },
+  "settings.start": {
+    "zh": "开始",
+    "ja": "開始",
+    "en": "Start"
+  },
+  "settings.timezone": {
+    "zh": "时区",
+    "ja": "タイムゾーン",
+    "en": "Time zone"
+  },
+  "settings.title": {
+    "zh": "设置",
+    "ja": "設定",
+    "en": "Settings"
+  },
+  "settings.tz_lang": {
+    "zh": "时区与语言",
+    "ja": "タイムゾーンと言語",
+    "en": "Time zone and language"
+  },
+  "settings.tz_note": {
+    "zh": "所有时间按此时区展示；用户数据保持原文。",
+    "ja": "すべての時刻はこのタイムゾーンで表示。ユーザーデータは原文のまま。",
+    "en": "All times are shown in this zone; your data stays as written."
+  },
+  "settings.ui_lang": {
+    "zh": "界面语言",
+    "ja": "表示言語",
+    "en": "Interface language"
+  },
+  "source.aria_prefix": {
+    "zh": "来源：",
+    "ja": "ソース：",
+    "en": "Source: "
+  },
+  "source.calendar": {
+    "zh": "Calendar",
+    "ja": "Calendar",
+    "en": "Calendar"
+  },
+  "source.chat": {
+    "zh": "聊天",
+    "ja": "チャット",
+    "en": "Chat"
+  },
+  "source.gmail": {
+    "zh": "Gmail",
+    "ja": "Gmail",
+    "en": "Gmail"
+  },
+  "source.import": {
+    "zh": "导入",
+    "ja": "インポート",
+    "en": "Import"
+  },
+  "source.linkedin": {
+    "zh": "LinkedIn 导出",
+    "ja": "LinkedIn エクスポート",
+    "en": "LinkedIn export"
+  },
+  "source.manual": {
+    "zh": "手动",
+    "ja": "手動",
+    "en": "Manual"
+  },
+  "source.research": {
+    "zh": "研究请求",
+    "ja": "リサーチ依頼",
+    "en": "Research request"
+  },
+  "status.accepted": {
+    "zh": "已承诺",
+    "ja": "内定承諾",
+    "en": "Accepted"
+  },
+  "status.applied": {
+    "zh": "已申请",
+    "ja": "応募済み",
+    "en": "Applied"
+  },
+  "status.assessment": {
+    "zh": "笔试或课题",
+    "ja": "筆記・課題",
+    "en": "Assessment"
+  },
+  "status.auto": {
+    "zh": "自动状态",
+    "ja": "自動ステータス",
+    "en": "Auto status"
+  },
+  "status.considering": {
+    "zh": "考虑中",
+    "ja": "検討中",
+    "en": "Considering"
+  },
+  "status.derived_from": {
+    "zh": "由事件推导",
+    "ja": "イベントから推定",
+    "en": "derived from event"
+  },
+  "status.interviewing": {
+    "zh": "面试中",
+    "ja": "面接中",
+    "en": "Interviewing"
+  },
+  "status.joined": {
+    "zh": "已入职",
+    "ja": "入社済み",
+    "en": "Joined"
+  },
+  "status.offer": {
+    "zh": "Offer",
+    "ja": "内定",
+    "en": "Offer"
+  },
+  "status.preparing": {
+    "zh": "准备申请",
+    "ja": "応募準備",
+    "en": "Preparing"
+  },
+  "status.rejected": {
+    "zh": "已落选",
+    "ja": "不採用",
+    "en": "Rejected"
+  },
+  "status.set_on": {
+    "zh": "设定于",
+    "ja": "設定",
+    "en": "Set on"
+  },
+  "status.unrecorded": {
+    "zh": "未记录",
+    "ja": "未記録",
+    "en": "Unrecorded"
+  },
+  "status.unsuitable": {
+    "zh": "不合适",
+    "ja": "不適合",
+    "en": "Unsuitable"
+  },
+  "status.user": {
+    "zh": "用户状态",
+    "ja": "ユーザー状態",
+    "en": "User status"
+  },
+  "status.withdrawn": {
+    "zh": "主动放弃",
+    "ja": "辞退",
+    "en": "Withdrawn"
+  },
+  "status_group.active": {
+    "zh": "进行中",
+    "ja": "進行中",
+    "en": "In progress"
+  },
+  "status_group.closed": {
+    "zh": "结束终态",
+    "ja": "終了",
+    "en": "Closed"
+  },
+  "status_group.notstarted": {
+    "zh": "未开始",
+    "ja": "未着手",
+    "en": "Not started"
+  },
+  "status_group.success": {
+    "zh": "成功终态",
+    "ja": "成功",
+    "en": "Success"
+  },
+  "table.company": {
+    "zh": "公司",
+    "ja": "会社",
+    "en": "Company"
+  },
+  "table.latest_event": {
+    "zh": "最近事件",
+    "ja": "最新イベント",
+    "en": "Latest event"
+  },
+  "table.next": {
+    "zh": "下一步 / 截止",
+    "ja": "次のステップ・締切",
+    "en": "Next / deadline"
+  },
+  "table.role": {
+    "zh": "岗位",
+    "ja": "職種",
+    "en": "Role"
+  },
+  "table.sources": {
+    "zh": "来源",
+    "ja": "ソース",
+    "en": "Sources"
+  },
+  "table.status": {
+    "zh": "状态",
+    "ja": "ステータス",
+    "en": "Status"
+  },
+  "time.date_example": {
+    "zh": "2026-10-01（水）14:00 JST",
+    "ja": "2026-10-01（水）14:00 JST",
+    "en": "2026-10-01（水）14:00 JST"
+  },
+  "time.jst": {
+    "zh": "JST",
+    "ja": "JST",
+    "en": "JST"
+  },
+  "time.later_this_week": {
+    "zh": "本周稍后",
+    "ja": "今週後半",
+    "en": "Later this week"
+  },
+  "time.today": {
+    "zh": "今天",
+    "ja": "今日",
+    "en": "Today"
+  },
+  "time.tomorrow": {
+    "zh": "明天",
+    "ja": "明日",
+    "en": "Tomorrow"
+  },
+  "todo.deadline": {
+    "zh": "截止",
+    "ja": "締切",
+    "en": "Deadline"
+  },
+  "todo.followup": {
+    "zh": "需跟进",
+    "ja": "要フォロー",
+    "en": "Follow-up"
+  },
+  "todo.interview": {
+    "zh": "面试",
+    "ja": "面接",
+    "en": "Interview"
+  },
+  "todo.portal": {
+    "zh": "门户待查看",
+    "ja": "マイページ確認",
+    "en": "Portal to check"
+  },
+  "topbar.search_placeholder": {
+    "zh": "搜索公司、岗位或邮件主题…",
+    "ja": "会社・求人・メール件名を検索…",
+    "en": "Search companies, roles, email subjects…"
+  },
+  "topbar.search_shortcut": {
+    "zh": "⌘K",
+    "ja": "⌘K",
+    "en": "⌘K"
+  },
+  "topbar.theme_toggle": {
+    "zh": "切换主题",
+    "ja": "テーマ切替",
+    "en": "Toggle theme"
+  },
+  "track.intern": {
+    "zh": "实习",
+    "ja": "インターン",
+    "en": "Internship"
+  },
+  "track.mid": {
+    "zh": "中途",
+    "ja": "中途",
+    "en": "Mid-career"
+  },
+  "track.newgrad": {
+    "zh": "新卒",
+    "ja": "新卒",
+    "en": "New grad"
+  },
+  "unit.applications": {
+    "zh": "条申请",
+    "ja": "件の選考",
+    "en": "applications"
+  },
+  "unit.days": {
+    "zh": "天",
+    "ja": "日",
+    "en": "days"
+  },
+  "unit.items": {
+    "zh": "项",
+    "ja": "件",
+    "en": "items"
+  }
+}
