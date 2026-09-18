@@ -48,7 +48,7 @@ const GROUPS: { label: Key; items: Item[] }[] = [
   {
     label: 'nav.group.system',
     items: [
-      { to: '/sources', label: 'nav.sources', icon: PlugZap, soon: true },
+      { to: '/settings?tab=sources', label: 'nav.sources', icon: PlugZap },
       { to: '/settings', label: 'nav.settings', icon: Settings },
     ],
   },

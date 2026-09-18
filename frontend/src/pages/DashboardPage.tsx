@@ -7,7 +7,13 @@ import { useCampaign } from '@/lib/campaign';
 import { fmtDate, fmtDateTime } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { STATUS_GROUPS, type StatusGroup } from '@/lib/status';
-import type { Dashboard } from '@/lib/types';
+import type { Dashboard, Kind } from '@/lib/types';
+
+const GREETING_KEY: Partial<Record<Kind, 'dashboard.greeting.intern' | 'dashboard.greeting.newgrad' | 'dashboard.greeting.midcareer'>> = {
+  intern: 'dashboard.greeting.intern',
+  newgrad: 'dashboard.greeting.newgrad',
+  midcareer: 'dashboard.greeting.midcareer',
+};
 
 const INTERVIEW_EVENTS = new Set(['interview', 'final_interview', 'casual_interview']);
 const GROUP_COLOR: Record<StatusGroup, string> = {
@@ -69,7 +75,9 @@ export function DashboardPage() {
         <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
           {t('dashboard.eyebrow')} · {fmtDate(new Date().toISOString(), tz, lang)} · {current?.name}
         </div>
-        <h1 className="hand-body mt-1 text-2xl text-ink-900">{t('dashboard.greeting')}</h1>
+        <h1 className="hand-body mt-1 text-2xl text-ink-900">
+          {t((current ? GREETING_KEY[current.kind] : undefined) ?? 'dashboard.greeting')}
+        </h1>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -153,11 +161,15 @@ export function DashboardPage() {
             </PaperCard>
             <PaperCard>
               <SectionTitle>{t('dashboard.soon.hints')}</SectionTitle>
-              <p className="text-sm text-ink-500">{t('dashboard.soon.body')}</p>
+              <div className="pending rounded-[10px] px-3.5 py-4 text-center text-xs leading-[1.7]">
+                <span className="font-semibold">{t('dashboard.soon.body')}</span>
+              </div>
             </PaperCard>
             <PaperCard>
               <SectionTitle>{t('dashboard.soon.sources')}</SectionTitle>
-              <p className="text-sm text-ink-500">{t('dashboard.soon.body')}</p>
+              <div className="pending rounded-[10px] px-3.5 py-4 text-center text-xs leading-[1.7]">
+                <span className="font-semibold">{t('dashboard.soon.body')}</span>
+              </div>
             </PaperCard>
           </div>
         </div>

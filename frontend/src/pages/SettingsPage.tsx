@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
-import { Pill } from '@/components/ui/Chips';
+import { Pill, SourceBadge } from '@/components/ui/Chips';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Field, inputClass } from '@/components/ui/Field';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PaperCard } from '@/components/ui/PaperCard';
@@ -69,6 +71,32 @@ function CampaignForm({ initial, onDone }: { initial?: Campaign; onDone: () => v
   );
 }
 
+const SOURCE_TABS = ['sources', 'settings'] as const;
+type SettingsTab = (typeof SOURCE_TABS)[number];
+
+function SegmentedTabs({ tab, onChange }: { tab: SettingsTab; onChange: (tab: SettingsTab) => void }) {
+  const { t } = useT();
+  return (
+    <div role="tablist" className="inline-flex rounded-full border border-cream-200 bg-cream-100 p-1 text-sm">
+      {SOURCE_TABS.map((tb) => (
+        <button
+          key={tb}
+          type="button"
+          role="tab"
+          aria-selected={tab === tb}
+          onClick={() => onChange(tb)}
+          className={[
+            'rounded-full px-4 py-1.5 font-medium transition-colors',
+            tab === tb ? 'bg-cream-300 text-ink-900' : 'text-ink-500 hover:text-ink-700',
+          ].join(' ')}
+        >
+          {t(`settings.tab.${tb}`)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function SettingsPage() {
   const { t, lang, setLang } = useT();
   const [theme, setTheme] = useTheme();
@@ -77,11 +105,32 @@ export function SettingsPage() {
   const activate = useActivateCampaign();
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [params, setParams] = useSearchParams();
+  const tab: SettingsTab = params.get('tab') === 'sources' ? 'sources' : 'settings';
+  const setTab = (next: SettingsTab) => setParams(next === 'settings' ? {} : { tab: next });
 
   return (
     <div className="space-y-5">
-      <PageHeader eyebrow={t('settings.eyebrow')} title={t('settings.title')} />
+      <PageHeader
+        eyebrow={t('settings.eyebrow')}
+        title={tab === 'sources' ? t('nav.sources') : t('settings.title')}
+        actions={<SegmentedTabs tab={tab} onChange={setTab} />}
+      />
 
+      {tab === 'sources' ? (
+        <EmptyState
+          title={t('settings.sources.title')}
+          hint={t('settings.sources.body')}
+          action={
+            <div className="flex gap-2 opacity-70">
+              <SourceBadge source="gmail" />
+              <SourceBadge source="gcal" />
+              <SourceBadge source="linkedin_export" />
+            </div>
+          }
+        />
+      ) : (
+        <>
       <PaperCard>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-ink-900">{t('settings.campaigns')}</h2>
@@ -156,6 +205,8 @@ export function SettingsPage() {
           </Field>
         </div>
       </PaperCard>
+        </>
+      )}
     </div>
   );
 }

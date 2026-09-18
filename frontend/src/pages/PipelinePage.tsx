@@ -15,6 +15,8 @@ import { useT } from '@/lib/i18n';
 import { STATUS_ORDER } from '@/lib/status';
 import type { ApplicationRow, Track } from '@/lib/types';
 
+const ALL_TRACKS = 'all';
+
 function AddForm({ campaignId, onDone }: { campaignId: number; onDone: () => void }) {
   const { t } = useT();
   const meta = useMeta();
@@ -110,6 +112,8 @@ export function PipelinePage() {
   const meta = useMeta();
   const apps = useApplications(current?.campaign_id ?? null);
   const [adding, setAdding] = useState(false);
+  const [track, setTrack] = useState<string>(ALL_TRACKS);
+  const [keyword, setKeyword] = useState('');
   const tz = meta.data?.tz ?? 'UTC';
 
   if (loaded && !current) {
@@ -117,6 +121,13 @@ export function PipelinePage() {
   }
   const rows = apps.data ?? [];
   const cols: string[] = ['company', 'role', 'status', 'last_event', 'next', 'source'];
+  const keywordLower = keyword.trim().toLowerCase();
+  const filteredRows = rows.filter(
+    (r) =>
+      (track === ALL_TRACKS || r.track === track) &&
+      (!keywordLower || `${r.company} ${r.role ?? ''}`.toLowerCase().includes(keywordLower)),
+  );
+  const clearFilters = () => { setTrack(ALL_TRACKS); setKeyword(''); };
 
   return (
     <div className="space-y-5">
@@ -134,29 +145,59 @@ export function PipelinePage() {
       {apps.isError ? <Alert tone="error">{t('common.error', { message: apps.error.message })}</Alert> : null}
       {apps.isSuccess && rows.length === 0 ? (
         <EmptyState title={t('pipeline.empty')} />
-      ) : (
-        <div className="overflow-hidden rounded-2xl border border-cream-200 bg-cream-100">
-          <table className="w-full text-sm">
-            <thead className="bg-cream-200/60 text-left text-xs uppercase tracking-wide text-ink-500">
-              <tr>{cols.map((c) => <th key={c} className="px-4 py-2 font-semibold">{t(`pipeline.col.${c}` as never)}</th>)}</tr>
-            </thead>
-            {STATUS_ORDER.map((status) => {
-              const group = rows.filter((r) => r.status === status);
-              if (group.length === 0) return null;
-              return (
-                <tbody key={status} className="divide-y divide-cream-200 border-t border-cream-200">
-                  <tr className="bg-cream-50/60">
-                    <td colSpan={cols.length} className="px-4 py-1.5">
-                      <span className="inline-flex items-center gap-2"><StatusChip status={status} /><span className="font-mono text-xs text-ink-500">{group.length}</span></span>
-                    </td>
-                  </tr>
-                  {group.map((row) => <Row key={row.application_id} row={row} tz={tz} />)}
-                </tbody>
-              );
-            })}
-          </table>
-        </div>
-      )}
+      ) : apps.isSuccess ? (
+        <>
+          <div className="flex flex-wrap items-end gap-3">
+            <Field label={t('pipeline.filter.track')}>
+              <select className={inputClass} value={track} onChange={(e) => setTrack(e.target.value)}>
+                <option value={ALL_TRACKS}>{t('pipeline.filter.all')}</option>
+                {(meta.data?.tracks ?? []).map((tr) => (
+                  <option key={tr} value={tr}>{t(`track.${tr}`)}</option>
+                ))}
+              </select>
+            </Field>
+            <div className="min-w-56 flex-1">
+              <Field label={t('pipeline.filter.keyword_placeholder')}>
+                <input
+                  className={inputClass}
+                  value={keyword}
+                  placeholder={t('pipeline.filter.keyword_placeholder')}
+                  onChange={(e) => setKeyword(e.target.value)}
+                />
+              </Field>
+            </div>
+          </div>
+          {filteredRows.length === 0 ? (
+            <EmptyState
+              title={t('pipeline.filter_empty.title')}
+              hint={t('pipeline.filter_empty.body')}
+              action={<Button variant="ghost" size="sm" onClick={clearFilters}>{t('pipeline.filter.clear')}</Button>}
+            />
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-cream-200 bg-cream-100">
+              <table className="w-full text-sm">
+                <thead className="bg-cream-200/60 text-left text-xs uppercase tracking-wide text-ink-500">
+                  <tr>{cols.map((c) => <th key={c} className="px-4 py-2 font-semibold">{t(`pipeline.col.${c}` as never)}</th>)}</tr>
+                </thead>
+                {STATUS_ORDER.map((status) => {
+                  const group = filteredRows.filter((r) => r.status === status);
+                  if (group.length === 0) return null;
+                  return (
+                    <tbody key={status} className="divide-y divide-cream-200 border-t border-cream-200">
+                      <tr className="bg-cream-50/60">
+                        <td colSpan={cols.length} className="px-4 py-1.5">
+                          <span className="inline-flex items-center gap-2"><StatusChip status={status} /><span className="font-mono text-xs text-ink-500">{group.length}</span></span>
+                        </td>
+                      </tr>
+                      {group.map((row) => <Row key={row.application_id} row={row} tz={tz} />)}
+                    </tbody>
+                  );
+                })}
+              </table>
+            </div>
+          )}
+        </>
+      ) : null}
     </div>
   );
 }

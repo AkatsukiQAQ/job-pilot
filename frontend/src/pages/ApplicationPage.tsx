@@ -15,6 +15,7 @@ import { useT } from '@/lib/i18n';
 import type { ApplicationDetail, Status } from '@/lib/types';
 
 const AUTO = '__auto__';
+const REVIEW_THRESHOLD = 0.7;
 
 function StatusEditor({ app, onDone }: { app: ApplicationDetail; onDone: () => void }) {
   const { t } = useT();
@@ -105,6 +106,7 @@ export function ApplicationPage() {
   const q = useApplication(id);
   const [editing, setEditing] = useState(false);
   const [logging, setLogging] = useState(false);
+  const [accepted, setAccepted] = useState<Set<number>>(new Set());
   const tz = meta.data?.tz ?? 'UTC';
 
   if (q.isError) return <EmptyState title={t('application.not_found')} action={<Link className="text-sm underline" to="/pipeline">{t('common.back')}</Link>} />;
@@ -155,16 +157,40 @@ export function ApplicationPage() {
               <p className="text-sm text-ink-500">{t('application.events.empty')}</p>
             ) : (
               <ol className="divide-y divide-cream-200 text-sm">
-                {[...app.events].reverse().map((e) => (
-                  <li key={e.event_id} className="flex items-start gap-3 py-2.5">
-                    <span className="w-52 shrink-0 font-mono text-xs text-ink-500">{fmtDateTime(e.occurred_at, tz, lang)}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-ink-900">{t(`event.${e.event_type}` as never)}</div>
-                      {e.summary ? <div className="text-xs text-ink-500">{e.summary}</div> : null}
-                    </div>
-                    <SourceBadge source={e.source} />
-                  </li>
-                ))}
+                {[...app.events].reverse().map((e) => {
+                  const needsReview = !e.user_confirmed && e.confidence < REVIEW_THRESHOLD && !accepted.has(e.event_id);
+                  return (
+                    <li key={e.event_id} className="py-2.5">
+                      <div className="flex items-start gap-3">
+                        <span className="w-52 shrink-0 font-mono text-xs text-ink-500">{fmtDateTime(e.occurred_at, tz, lang)}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-ink-900">{t(`event.${e.event_type}` as never)}</div>
+                          {e.summary ? <div className="text-xs text-ink-500">{e.summary}</div> : null}
+                        </div>
+                        <SourceBadge source={e.source} />
+                      </div>
+                      {needsReview ? (
+                        <div className="mt-1.5 ml-[14.5rem] flex flex-wrap items-center gap-2 text-xs">
+                          <span
+                            className="chip inline-flex items-center rounded-full border px-2 py-0.5 font-semibold"
+                            style={{ color: 'var(--color-review-fg)', background: 'var(--color-review-bg)', borderColor: 'var(--color-review-border)' }}
+                          >
+                            {t('application.events.review_tag')}
+                          </span>
+                          <span className="text-ink-500">{t('application.events.confidence')}: {Math.round(e.confidence * 100)}%</span>
+                          <Button size="sm" variant="ghost" onClick={() => setAccepted((s) => new Set(s).add(e.event_id))}>
+                            {t('application.events.accept')}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setLogging(true)}>
+                            {t('application.events.correct')}
+                          </Button>
+                        </div>
+                      ) : (e.user_confirmed || accepted.has(e.event_id)) && e.confidence < REVIEW_THRESHOLD ? (
+                        <div className="mt-1.5 ml-[14.5rem] text-xs text-ink-500">{t('application.events.confirmed_by_user')}</div>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ol>
             )}
           </PaperCard>
