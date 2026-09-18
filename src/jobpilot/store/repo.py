@@ -131,6 +131,44 @@ class CampaignRepo:
         ).fetchone()
         return Campaign.from_row(r) if r is not None else None
 
+    def update(
+        self, campaign_id: int, new: CampaignCreate, *, actor: Actor = "user", source: str = "web"
+    ) -> Campaign:
+        """Replace name / kind / region_pack / dates (is_active and flags untouched). Audited.
+
+        A duplicate name raises sqlite3.IntegrityError; an unknown id raises KeyError.
+        """
+        with transaction(self.conn):
+            before = self.conn.execute(
+                "SELECT * FROM campaign WHERE campaign_id = ?", (campaign_id,)
+            ).fetchone()
+            if before is None:
+                raise KeyError(campaign_id)
+            row = self.conn.execute(
+                "UPDATE campaign SET name = ?, kind = ?, region_pack = ?, starts_on = ?, ends_on = ?"
+                " WHERE campaign_id = ? RETURNING *",
+                (
+                    new.name,
+                    new.kind.value,
+                    new.region_pack,
+                    new.starts_on.isoformat() if new.starts_on else None,
+                    new.ends_on.isoformat() if new.ends_on else None,
+                    campaign_id,
+                ),
+            ).fetchone()
+            assert row is not None
+            write_audit(
+                self.conn,
+                actor=actor,
+                action="campaign.update",
+                table_name="campaign",
+                row_id=campaign_id,
+                before=before,
+                after=row,
+                source=source,
+            )
+        return Campaign.from_row(row)
+
     def set_active(
         self, campaign_id: int, *, actor: Actor = "user", source: str = "web"
     ) -> Campaign:

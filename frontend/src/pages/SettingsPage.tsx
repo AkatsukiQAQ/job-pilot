@@ -5,27 +5,38 @@ import { Pill } from '@/components/ui/Chips';
 import { Field, inputClass } from '@/components/ui/Field';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PaperCard } from '@/components/ui/PaperCard';
-import { useActivateCampaign, useCreateCampaign, useMeta } from '@/hooks/useBoard';
+import { useActivateCampaign, useCreateCampaign, useMeta, useUpdateCampaign } from '@/hooks/useBoard';
 import { LANGS, LANG_LABEL, type Lang } from '@/i18n';
 import { useCampaign } from '@/lib/campaign';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
-import type { Kind } from '@/lib/types';
+import type { Campaign, CampaignIn, Kind } from '@/lib/types';
 
-function NewCampaignForm({ onDone }: { onDone: () => void }) {
+/** Create (no `initial`) or edit (with `initial`) a cycle; same fields either way. */
+function CampaignForm({ initial, onDone }: { initial?: Campaign; onDone: () => void }) {
   const { t } = useT();
   const meta = useMeta();
   const create = useCreateCampaign();
+  const update = useUpdateCampaign();
   const { select } = useCampaign();
-  const [form, setForm] = useState({ name: '', kind: 'newgrad' as Kind, region_pack: 'global_en', starts_on: '', ends_on: '' });
+  const [form, setForm] = useState({
+    name: initial?.name ?? '',
+    kind: initial?.kind ?? ('newgrad' as Kind),
+    region_pack: initial?.region_pack ?? 'global_en',
+    starts_on: initial?.starts_on ?? '',
+    ends_on: initial?.ends_on ?? '',
+  });
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
+  const pending = create.isPending || update.isPending;
+  const error = create.error ?? update.error;
+
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    create.mutate(
-      { ...form, starts_on: form.starts_on || null, ends_on: form.ends_on || null },
-      { onSuccess: (c) => { select(c.campaign_id); onDone(); } },
-    );
+    const body: CampaignIn = { ...form, starts_on: form.starts_on || null, ends_on: form.ends_on || null };
+    if (initial) update.mutate({ id: initial.campaign_id, body }, { onSuccess: onDone });
+    else create.mutate(body, { onSuccess: (c) => { select(c.campaign_id); onDone(); } });
   };
+
   return (
     <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
       <Field label={t('settings.campaigns.name')}>
@@ -49,10 +60,10 @@ function NewCampaignForm({ onDone }: { onDone: () => void }) {
           <input className={inputClass} type="date" value={form.ends_on} onChange={set('ends_on')} />
         </Field>
       </div>
-      {create.isError ? <div className="md:col-span-2"><Alert tone="error">{create.error.message}</Alert></div> : null}
+      {error ? <div className="md:col-span-2"><Alert tone="error">{error.message}</Alert></div> : null}
       <div className="flex justify-end gap-2 md:col-span-2">
         <Button variant="ghost" onClick={onDone}>{t('common.cancel')}</Button>
-        <Button type="submit" disabled={create.isPending}>{t('common.add')}</Button>
+        <Button type="submit" disabled={pending}>{initial ? t('common.save') : t('common.add')}</Button>
       </div>
     </form>
   );
@@ -65,6 +76,7 @@ export function SettingsPage() {
   const { campaigns } = useCampaign();
   const activate = useActivateCampaign();
   const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   return (
     <div className="space-y-5">
@@ -75,7 +87,7 @@ export function SettingsPage() {
           <h2 className="text-sm font-semibold text-ink-900">{t('settings.campaigns')}</h2>
           {creating ? null : <Button size="sm" onClick={() => setCreating(true)}>{t('settings.campaigns.new')}</Button>}
         </div>
-        {creating ? <div className="mb-4"><NewCampaignForm onDone={() => setCreating(false)} /></div> : null}
+        {creating ? <div className="mb-4"><CampaignForm onDone={() => setCreating(false)} /></div> : null}
         {campaigns.length === 0 ? (
           <p className="text-sm text-ink-500">{t('settings.campaigns.empty')}</p>
         ) : (
@@ -92,24 +104,33 @@ export function SettingsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-cream-200">
-                {campaigns.map((c) => (
-                  <tr key={c.campaign_id}>
-                    <td className="px-4 py-3 text-ink-900">{c.name}{c.is_active ? <Pill className="ml-2">{t('settings.campaigns.active')}</Pill> : null}</td>
-                    <td className="px-4 py-3 text-ink-700">{t(`kind.${c.kind}`)}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-ink-700">{c.region_pack}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-ink-700">
-                      {c.starts_on ?? t('common.none')} → {c.ends_on ?? <span className="font-sans">{t('settings.campaigns.ongoing')}</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono text-ink-700">{c.application_count}</td>
-                    <td className="px-4 py-3 text-right">
-                      {c.is_active ? null : (
-                        <Button size="sm" variant="outline" disabled={activate.isPending} onClick={() => activate.mutate(c.campaign_id)}>
-                          {t('settings.campaigns.activate')}
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {campaigns.map((c) =>
+                  editingId === c.campaign_id ? (
+                    <tr key={c.campaign_id}>
+                      <td colSpan={6} className="px-4 py-4">
+                        <CampaignForm initial={c} onDone={() => setEditingId(null)} />
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={c.campaign_id}>
+                      <td className="px-4 py-3 text-ink-900">{c.name}{c.is_active ? <Pill className="ml-2">{t('settings.campaigns.active')}</Pill> : null}</td>
+                      <td className="px-4 py-3 text-ink-700">{t(`kind.${c.kind}`)}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-ink-700">{c.region_pack}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-ink-700">
+                        {c.starts_on ?? t('common.none')} → {c.ends_on ?? <span className="font-sans">{t('settings.campaigns.ongoing')}</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-ink-700">{c.application_count}</td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <Button size="sm" variant="ghost" onClick={() => setEditingId(c.campaign_id)}>{t('settings.campaigns.edit')}</Button>
+                        {c.is_active ? null : (
+                          <Button size="sm" variant="outline" className="ml-2" disabled={activate.isPending} onClick={() => activate.mutate(c.campaign_id)}>
+                            {t('settings.campaigns.activate')}
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ),
+                )}
               </tbody>
             </table>
           </div>

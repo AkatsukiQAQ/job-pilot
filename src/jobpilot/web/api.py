@@ -123,6 +123,23 @@ def create_campaign(body: CampaignIn, conn: Conn) -> CampaignOut:
     return next(c for c in _campaign_out(conn) if c.campaign_id == created.campaign_id)
 
 
+@router.patch("/campaigns/{campaign_id}")
+def update_campaign(campaign_id: int, body: CampaignIn, conn: Conn) -> CampaignOut:
+    if body.region_pack not in list_region_packs():
+        raise HTTPException(422, "unknown region pack")
+    try:
+        CampaignRepo(conn).update(
+            campaign_id, CampaignCreate(**body.model_dump()), source=manual.SOURCE
+        )
+    except KeyError as e:
+        raise HTTPException(404, "campaign not found") from e
+    except sqlite3.IntegrityError as e:
+        raise HTTPException(409, "a campaign with this name already exists") from e
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    return next(c for c in _campaign_out(conn) if c.campaign_id == campaign_id)
+
+
 @router.post("/campaigns/{campaign_id}/activate")
 def activate_campaign(campaign_id: int, conn: Conn) -> CampaignOut:
     try:

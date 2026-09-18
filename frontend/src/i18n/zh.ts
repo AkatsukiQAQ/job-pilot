@@ -173,6 +173,7 @@ export const zh: Record<Key, string> = {
   'settings.campaigns.ongoing': '进行中',
   'settings.campaigns.count': '申请数',
   'settings.campaigns.activate': '设为当前',
+  'settings.campaigns.edit': '编辑',
   'settings.campaigns.active': '当前',
   'settings.campaigns.empty': '先创建一个周期，才能记录申请。',
   'settings.prefs': '偏好',

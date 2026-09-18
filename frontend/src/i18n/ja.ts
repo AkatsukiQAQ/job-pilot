@@ -173,6 +173,7 @@ export const ja: Record<Key, string> = {
   'settings.campaigns.ongoing': '進行中',
   'settings.campaigns.count': '応募数',
   'settings.campaigns.activate': '現在のサイクルにする',
+  'settings.campaigns.edit': '編集',
   'settings.campaigns.active': '現在',
   'settings.campaigns.empty': 'まずサイクルを作成すると応募を記録できます。',
   'settings.prefs': '環境設定',

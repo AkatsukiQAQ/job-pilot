@@ -28,6 +28,18 @@ export function useCreateCampaign() {
   });
 }
 
+export function useUpdateCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: CampaignIn }) =>
+      fetchJson<Campaign>(`/api/campaigns/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['campaigns'] });
+      qc.invalidateQueries({ queryKey: ['meta'] }); // region pack (tz) may change
+    },
+  });
+}
+
 export function useActivateCampaign() {
   const qc = useQueryClient();
   return useMutation({

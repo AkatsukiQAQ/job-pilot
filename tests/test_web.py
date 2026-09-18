@@ -106,3 +106,43 @@ def test_activate_switches_the_active_campaign(client: TestClient) -> None:
     assert flags == {a["campaign_id"]: True, b["campaign_id"]: False}
     assert client.post("/api/campaigns/999/activate").status_code == 404
     assert client.get("/api/applications/999").status_code == 404
+
+
+def test_update_campaign(client: TestClient) -> None:
+    a = client.post(
+        "/api/campaigns", json={"name": "a", "kind": "other", "region_pack": "global_en"}
+    ).json()
+    client.post("/api/campaigns", json={"name": "b", "kind": "other", "region_pack": "global_en"})
+    r = client.patch(
+        f"/api/campaigns/{a['campaign_id']}",
+        json={"name": "a2", "kind": "midcareer", "region_pack": "japan", "starts_on": "2031-01-01"},
+    )
+    assert r.status_code == 200
+    assert (r.json()["name"], r.json()["kind"], r.json()["starts_on"]) == (
+        "a2",
+        "midcareer",
+        "2031-01-01",
+    )
+    assert r.json()["is_active"] is True  # untouched
+    dup = client.patch(
+        f"/api/campaigns/{a['campaign_id']}",
+        json={"name": "b", "kind": "other", "region_pack": "global_en"},
+    )
+    assert dup.status_code == 409
+    bad = client.patch(
+        f"/api/campaigns/{a['campaign_id']}",
+        json={
+            "name": "a2",
+            "kind": "other",
+            "region_pack": "global_en",
+            "starts_on": "2031-02-01",
+            "ends_on": "2031-01-01",
+        },
+    )
+    assert bad.status_code == 422
+    assert (
+        client.patch(
+            "/api/campaigns/999", json={"name": "x", "kind": "other", "region_pack": "global_en"}
+        ).status_code
+        == 404
+    )

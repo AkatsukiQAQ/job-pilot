@@ -173,6 +173,7 @@ export const en = {
   'settings.campaigns.ongoing': 'Ongoing',
   'settings.campaigns.count': 'Applications',
   'settings.campaigns.activate': 'Make current',
+  'settings.campaigns.edit': 'Edit',
   'settings.campaigns.active': 'Current',
   'settings.campaigns.empty': 'Create your first cycle to start recording applications.',
   'settings.prefs': 'Preferences',
