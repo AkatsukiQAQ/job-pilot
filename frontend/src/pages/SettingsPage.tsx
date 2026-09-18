@@ -45,7 +45,7 @@ function NewCampaignForm({ onDone }: { onDone: () => void }) {
         <Field label={t('settings.campaigns.starts')}>
           <input className={inputClass} type="date" value={form.starts_on} onChange={set('starts_on')} />
         </Field>
-        <Field label={t('settings.campaigns.ends')}>
+        <Field label={`${t('settings.campaigns.ends')} (${t('common.optional')})`} hint={t('settings.campaigns.ends.hint')}>
           <input className={inputClass} type="date" value={form.ends_on} onChange={set('ends_on')} />
         </Field>
       </div>
@@ -97,7 +97,9 @@ export function SettingsPage() {
                     <td className="px-4 py-3 text-ink-900">{c.name}{c.is_active ? <Pill className="ml-2">{t('settings.campaigns.active')}</Pill> : null}</td>
                     <td className="px-4 py-3 text-ink-700">{t(`kind.${c.kind}`)}</td>
                     <td className="px-4 py-3 font-mono text-xs text-ink-700">{c.region_pack}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-ink-700">{c.starts_on ?? '—'} / {c.ends_on ?? '—'}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-ink-700">
+                      {c.starts_on ?? t('common.none')} → {c.ends_on ?? <span className="font-sans">{t('settings.campaigns.ongoing')}</span>}
+                    </td>
                     <td className="px-4 py-3 text-right font-mono text-ink-700">{c.application_count}</td>
                     <td className="px-4 py-3 text-right">
                       {c.is_active ? null : (

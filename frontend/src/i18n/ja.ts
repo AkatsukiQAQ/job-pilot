@@ -169,6 +169,8 @@ export const ja: Record<Key, string> = {
   'settings.campaigns.region': 'リージョンパック',
   'settings.campaigns.starts': '開始',
   'settings.campaigns.ends': '終了',
+  'settings.campaigns.ends.hint': '進行中の場合は空欄のままにしてください。',
+  'settings.campaigns.ongoing': '進行中',
   'settings.campaigns.count': '応募数',
   'settings.campaigns.activate': '現在のサイクルにする',
   'settings.campaigns.active': '現在',

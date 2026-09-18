@@ -169,6 +169,8 @@ export const zh: Record<Key, string> = {
   'settings.campaigns.region': '区域包',
   'settings.campaigns.starts': '开始',
   'settings.campaigns.ends': '结束',
+  'settings.campaigns.ends.hint': '周期还在进行中就留空。',
+  'settings.campaigns.ongoing': '进行中',
   'settings.campaigns.count': '申请数',
   'settings.campaigns.activate': '设为当前',
   'settings.campaigns.active': '当前',

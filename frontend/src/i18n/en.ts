@@ -169,6 +169,8 @@ export const en = {
   'settings.campaigns.region': 'Region pack',
   'settings.campaigns.starts': 'Starts',
   'settings.campaigns.ends': 'Ends',
+  'settings.campaigns.ends.hint': 'Leave empty while the cycle is ongoing.',
+  'settings.campaigns.ongoing': 'Ongoing',
   'settings.campaigns.count': 'Applications',
   'settings.campaigns.activate': 'Make current',
   'settings.campaigns.active': 'Current',
