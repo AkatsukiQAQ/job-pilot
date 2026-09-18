@@ -53,6 +53,19 @@ class Settings(BaseSettings):
 
     # sync (Phase 1)
     poll_seconds: int = Field(default=90, ge=15)
+    backfill_days: int = Field(default=180, ge=1, le=3650)
+    # Gmail quota: 6,000 units/min/user; keep 20% headroom for list/history/retries.
+    gmail_units_per_minute: int = Field(default=4800, ge=100, le=6000)
+    # Gmail categories excluded from backfill/incremental sync (decision D25).
+    gmail_skip_categories: str = "promotions,social"
+    body_retention_days: int = Field(default=90, ge=1)
+    llm_body_chars: int = Field(default=4000, ge=500, le=20000)
+    review_threshold: float = Field(default=0.7, ge=0.0, le=1.0)
+
+    # google oauth (Phase 1)
+    google_client_secret_path: Path | None = None  # derived: secrets_dir / "client_secret.json"
+    oauth_loopback_host: str = "127.0.0.1"  # Google recommends the literal loopback IP
+    oauth_timeout_seconds: int = Field(default=300, ge=30)
 
     # LLM (decision D8: model ids only from config, "provider:model-id")
     classifier_model: str | None = None
@@ -77,7 +90,27 @@ class Settings(BaseSettings):
             self.database_path = self.data_dir / "jobpilot.db"
         if self.base_url is None:
             self.base_url = f"http://{self.host}:{self.port}"
+        if self.google_client_secret_path is None:
+            self.google_client_secret_path = self.data_dir / "secrets" / "client_secret.json"
         return self
+
+    @property
+    def client_secret_path(self) -> Path:
+        assert self.google_client_secret_path is not None  # filled by _derive
+        return self.google_client_secret_path
+
+    @property
+    def skip_categories(self) -> tuple[str, ...]:
+        return tuple(c.strip().lower() for c in self.gmail_skip_categories.split(",") if c.strip())
+
+    @property
+    def skip_category_labels(self) -> frozenset[str]:
+        """Gmail label ids for the skipped categories, e.g. CATEGORY_PROMOTIONS."""
+        return frozenset(f"CATEGORY_{c.upper()}" for c in self.skip_categories)
+
+    @property
+    def skip_category_query(self) -> str:
+        return " ".join(f"-category:{c}" for c in self.skip_categories)
 
     @property
     def db_path(self) -> Path:
