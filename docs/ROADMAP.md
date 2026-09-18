@@ -1,229 +1,132 @@
-# Mita JobPilot 分阶段路线图
+# Mita JobPilot 分步路线图
 
 | 项目 | 内容 |
 |---|---|
-| 状态 | 草案 v0.3（2026-09-17） |
-| 前置 | [REQUIREMENTS.md](REQUIREMENTS.md) · [ARCHITECTURE.md](ARCHITECTURE.md) |
+| 状态 | v0.4（2026-09-18，按决策 D26 重排） |
+| 前置 | [REQUIREMENTS.md](REQUIREMENTS.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [design/v1/](design/v1/) |
 
-原则：每个阶段独立可用；先把「每个选考流程的状态自动保持最新」做对，再叠加控制、日历、记忆、搜索、自有对话、学习循环、对外发布。估时按一个人晚上和周末的节奏，评审一致认为原提案偏乐观，这里已上调约三成。阶段是检查点而非停顿：用户计划连续推进（决策 D21），退出标准用于自检，不要求逐阶段停下等待批准。
+原则：**先有每天能打开、能手动记录的看板，再让数据自动流入，最后加对话**。每一步独立可用；每一步一个 git 分支（`step1-board`、`step2a-gmail` …），用户验收后合回 `main`。托管部署（Docker、云、登录自启）全部放在最后一步（D27），此前只在本机 `jobpilot serve` 运行。不做语音（D31）。
 
 ---
 
-## 0. 阶段总览
+## 0. 总览
 
-| 阶段 | 名称 | 交付物 | 估时 |
+| 步 | 名称 | 交付物 | 状态 |
 |---|---|---|---|
-| 0 | 骨架 | `src/` 布局、配置、密钥（含 DPAPI 令牌后端）、迁移器、区域包协议、CI 基线 | 1 到 2 个晚上 |
-| 1 | 收件箱到看板 | Gmail 只读同步 → 三层分类 → SQLite → `jobpilot board` + 只读 MCP | 7 到 9 个晚上（约 1.5 到 2 周，含验收与浸泡） |
-| 2 | 可信与可控 | 提议 / 确认写入、LinkedIn 导出导入、待复核队列、提醒、备份、`DESIGN.md`（Claude Design 产出，可与 Phase 0 / 1 并行）、只读看板 Web UI | 2 周 |
-| 3 | 日历与记忆 v1 | Calendar 面试事件、`profile_facts` 与收件箱、按周期类型的引导问卷、历史聊天导入、响应式验收 | 1.5 到 2 周 |
-| 4 | 岗位搜索 v1 | 只读岗位源、目击台账与核验、去重、硬过滤 + 软分 + LLM 重排、研究请求、评估粘贴岗位、并排比较 | 2 到 3 周 |
-| 5 | 应用内对话与语音 | 提供商切换、流式、确认卡片、按住说话、语音操作、会话记忆与情节摘要 | 3 周 |
-| 6 | 学习循环与加固 | 结果学习、语义检索、可选加密、清理策略、通知 | 持续，核心 2 周 |
-| 7 | 对外发布 | 引导向导、Docker、i18n、双语文档、文档脱敏与 PII 守卫、许可 | 1 到 2 周 |
+| 0 | 骨架 | `src/` 布局、配置、密钥、迁移器、区域包协议、CI 基线 | 完成（2026-09-17） |
+| 0.5 | 追踪域与 Google 连接器 | 迁移 0001 全部表、枚举、仓储、FTS；`ReadOnlyHttp`、多账号 `auth google`、Gmail API 层 | 完成（原 Phase 1 S1 / S2，`9ab39b3`、`1e95673`） |
+| 1 | 基础网页看板 | FastAPI 看板 API + 手动录入 + React 四页（看板 / Pipeline / 申请详情 / 周期设置） | **进行中**（分支 `step1-board`） |
+| 2a | Gmail 接入 | 规则与短语、同步与分类管线、`sync / senders / watch`、信息源页、待复核页 | |
+| 2b | LinkedIn 导出导入 | `import linkedin <zip>`、Easy Apply 合并 | |
+| 2c | Calendar 面试 | `interview_event`、gcal 只读同步、面试页 | |
+| 3a | 只读对话 | MCP 只读工具 + 应用内对话页只读问答 | |
+| 3b | 提议 / 确认 | `pending_actions`、确认卡片、语言操作、待复核裁决 | |
+| 4 | 岗位搜索 v1 | 只读岗位源、目击与核验、去重、排序、研究请求、评估粘贴岗位、比较 | |
+| 5 | 记忆 v1 | `profile_facts`、记忆收件箱、引导问卷、历史聊天导入 | |
+| 6 | 学习循环与加固 | 结果学习、语义检索、可选加密、清理、备份 | |
+| 7 | 发布与部署 | 引导向导、Docker、托管指南、i18n 文档、脱敏、许可、登录自启 | |
 
 ---
 
-## Phase 0 · 骨架
+## 第 0 步 · 骨架（完成）
 
-**目标**：把空的 uv 项目变成可打包、可测试、可配置的应用，之后每个阶段都是「加一个迁移 + 一个服务 + 一个 CLI 子命令」。
+`pyproject.toml`（uv_build、控制台入口）、`settings.py`（`JOBPILOT_` 前缀，无个人默认值）、`secrets.py`（槽位白名单 + keyring / DPAPI / Fernet / env）、`store/db.py` + `0001_init.sql`、`regions/`（协议、注册表、`global_en` 与 `japan`）、`cli.py`（`campaign add / list`、`init`、`doctor`）、pre-commit（ruff、pyright、`check_pii`、守卫测试）。
 
-范围：
-- 保持本机 uv 0.10.7（它是 pip 安装的，`uv self update` 不可用；如需升级用 `py -m pip install --user -U uv`，并同步 Dockerfile 的 uv 镜像 tag 与重新 `uv lock`）；`pyproject.toml` 加 `[build-system]`（`uv_build>=0.10.7,<0.13`，兼容 0.10 与 0.12）、`[project.scripts] jobpilot / jobpilot-mcp`、dev 依赖组（pytest、ruff、pyright、pre-commit、类型 stub）、运行依赖含 `tzdata`（Windows 无系统时区库）、项目元数据（描述、README；许可与作者在公开前决定，见决策 D19）。
-- `src/jobpilot/settings.py`（pydantic-settings，`JOBPILOT_` 前缀，含 `CAMPAIGN_NAME / _KIND / _REGION_PACK`）、`secrets.py`（`SecretStore` 协议：keyring 存短 key、DPAPI 文件存令牌、env 后端供测试；槽位白名单）。令牌从第一次落盘起就加密。
-- `store/db.py`（连接工厂：WAL、外键、busy_timeout、迁移运行器）、`migrations/0001_init.sql` 空骨架。
-- `regions/base.py` 协议 + `global_en` 与 `japan` 空目录。
-- `campaign` 表 + `jobpilot campaign add --name --kind --region-pack --starts --ends`；迁移文件不含种子数据，作者用命令或 `.env` 创建自己的周期。
-- `env.example`、`Dockerfile`、`compose.yaml`、pre-commit（ruff、pyright、`scripts/check_pii.py`）。
+## 第 0.5 步 · 追踪域与 Google 只读连接器（完成）
 
-退出标准：`uv run jobpilot --help` 可用；`uv run pytest` 通过一个冒烟测试；`uv run ruff check` 与 `pyright` 干净；`campaign add` 创建一条周期并能列出。
-
-**状态：已完成（2026-09-17）。** 实际交付比计划多两项：`0001_init.sql` 同时含 `audit_log`，`campaign add` 在同一事务写审计行（约束 5）；`doctor` 命令报告环境、schema 版本、FTS5、生效时区及来源、密钥后端、区域包、活动周期与模型配置。43 个测试通过，ruff / pyright / pre-commit / `check_pii` 全绿，wheel 含全部迁移与区域包数据文件。
+- 迁移 0001：`campaign / audit_log / company / company_alias / application（12 态、effective_status 生成列）/ application_event / email_account / email_message + FTS5 双表 / email_classification / classification_rule / rule_stat / pii_aliases / llm_call_log / source_state`。领域枚举与推导表在 `domain.py`；仓储在 `store/repo.py`；搜索在 `store/search.py`。
+- `connectors/gmail/`：`ReadOnlyHttp`（仅 GET、白名单主机、令牌刷新为唯一 POST）、`auth.py`（loopback + PKCE、精确范围断言、`login_hint`、多账号 token）、`parse.py`、`sync.py`（配额预算、`history.list` 游标）。`jobpilot auth google / list / forget`。
+- 用户侧：Google Cloud 项目、Gmail + Calendar API、External / Testing、测试用户、Desktop OAuth 客户端已就位（2026-09-18）。
 
 ---
 
-## Phase 1 · 收件箱到看板（MVP）
+## 第 1 步 · 基础网页看板（进行中）
 
-**目标**：过去 180 天在 Gmail 留下痕迹的每一个选考流程出现在状态看板上，阶段、下一步截止、最近事件正确；新邮件 2 分钟内更新看板；外部写操作在结构上不可能；Claude Desktop / Claude Code / Codex 能回答「我在 X 公司进行到哪了」。
+**目标**：在浏览器里建周期、手动添加申请、记事件、改状态，看板与 Pipeline 随之变化；界面按 MITA Finance 设计语言，三语，暗色可切。数据全部手动录入，不接任何外部源。
 
 范围：
-- Google Cloud 项目：启用 Gmail 与 Calendar API；Auth Platform External + Testing，本人为测试用户；**一次性申请** `gmail.readonly` 与 `calendar.events.readonly`；Desktop 客户端。`jobpilot auth google`（loopback + PKCE），落盘前断言范围子集，启动时在线核对 `tokeninfo`；每运行一次添加一个邮箱账号（`email_account` 一行），数量不限，同步遍历所有启用账号，看板跨账号合并。
-- `ReadOnlyHttp` 传输层；`connectors/gmail/{auth,readonly_http,sync,parse}.py`。
-- 迁移 0001：`campaign`、`company`（含 `is_current_employer`）、`company_alias`、`application`（12 态枚举）、`application_event`、`email_account`、`email_message` + `email_fts`、`email_classification`、`classification_rule`、`rule_stat`、`pii_aliases`、`audit_log`、`source_state`。
-- `jobpilot sync --backfill-days 180`：元数据全取，规则放行的邮件取全文；按 ≤ 50 封一批并退避；存最大 `historyId`。
-- `jobpilot senders`：发件域名 / 地址 / 主题模板统计。只把平台 / 供应商级的域名与 URL 正则写入 `regions/japan/senders.yaml`（每条附公开来源 URL）；从本人收件箱观察到的具体公司租户写本地 `JOBPILOT_DATA_DIR/rules/user_senders.yaml`（不入库）。
-- `classify/rules.py` + `phrases.py`：日本包与全球包的发件人、URL、日语 / 中文 / 英文短语表，带 `verified` 标记；`classify/llm.py`：pydantic-ai 结构化输出，PII 别名 + 4k 截断，按 `(gmail_id, prompt_version)` 缓存，记录成本；提示注入防护（不可信文本作为数据分块）。
-- `services/{resolve,pipeline,status}.py`：别名 → 归一化名 → 模糊匹配；thread 粘连；幂等事件插入；`auto_status` 重算；现雇主域名例外；`portal_check_required` 事件；置信度 < 0.7 进待复核；14 天 → `followup_needed`；30 天 → `is_ghosted`。
-- `jobpilot board`（按 `effective_status` 分组、JST、下一截止列、待复核与 ghosted 标记、顶部信息源状态）、`jobpilot show <id>`、`jobpilot watch --interval 90`。
-- `mcp_server.py`：`MCPServer('jobpilot')`，只读工具 `list_pipeline / get_application / search_emails / get_sync_status`，带 `ToolAnnotations` 只读提示（从 `mcp.types` 导入，字段名以 2.x 源码为准），返回值经 `pii_aliases` 脱敏，工具描述内嵌落地规则；注册到 Claude Desktop（`%APPDATA%\Claude\claude_desktop_config.json`，uv 绝对路径）、Claude Code（`claude mcp add`）、Codex（`codex mcp add`）。
-- `tests/test_readonly_guard.py`、`tests/test_rules.py`（匿名化夹具，由 `jobpilot fixtures anonymize` 生成的最小版本）。
-- 周末：点击「Publish app」（In production，不提交验证），删除令牌重新授权；设一个 8 天后的日历提醒检查令牌是否仍然有效。
+- 后端：`services/status.py`（事件 → 自动状态推导、`is_ghosted`）、`services/manual.py`（添加申请 / 记事件 / 改用户状态，直接写库 + 审计，D29）、`CampaignRepo.set_active`、`web/`（FastAPI 工厂、9 个 JSON 接口、托管 `frontend/dist`）、`jobpilot serve`。
+- 前端 `frontend/`：React 19 + Vite 7 + Tailwind v4 + TanStack Query + React Router + lucide-react；`tokens.css` 拷自 `docs/design/v1/`；应用外壳（完整导航树，未做项标 Soon；顶栏周期切换 / 语言 / 主题）；页面 01 看板、02 Pipeline（表格视图 + 添加申请）、03 申请详情（改状态确认卡、记事件、备注）、12 设置（周期管理）；i18n 跟随浏览器回退 en（D28）。
+- 文档：本文件、REQUIREMENTS D26 到 D31、`docs/design/` 说明、CLAUDE.md 前端约定。
 
-不做：任何写范围、IMAP、Pub/Sub；LinkedIn 除 Gmail 通知邮件外的一切；Calendar 同步（只申请范围）；Web UI；语音代码；记忆；搜索；提议 / 确认工具；数据库加密（SQLCipher）；ORM；APScheduler。
+不做：⌘K 搜索、AI 提醒卡、信息源健康条、Pipeline 看板视图、手机版、面试页、任何自动数据源、`pending_actions`、CLI 录入命令。
 
 退出标准：
-- 看板列出你记得的过去 6 个月每一个流程；随机抽 30 条，≥ 27 条状态与公司 / 职位正确。
-- `jobpilot watch` 运行时，新 ATS / 招聘者邮件 2 分钟内成为看板事件。
-- 只读守卫测试通过：传输层拒绝非 GET；connectors 无写符号；无 smtplib / imaplib / playwright / linkedin_api 导入；范围列表不变。
-- MCP 工具返回值不含原始邮箱 / 电话 / 人名。
-- 令牌浸泡：发布后重新授权的令牌在第 8 天仍能同步；若失败，记录并退回 Testing 每周授权。
-- Claude Desktop 与 Codex 都能引用 `[app:id]` 回答「我在面试哪些公司，本周截止什么」；语音侧用 Win+H 听写验证。
-- 实测并记录：Claude Desktop 语音模式是否会调用本地 MCP 工具。
-- 180 天回填的 LLM 费用有记录且约 15 美元以内。
+- `uv run jobpilot serve` 后打开 `http://127.0.0.1:8765`：新建周期 → 添加申请 → 记一条「面试」事件 → 状态自动变为面试中 → 手动改为落选 → 看板计数与 Pipeline 分组随之变化；`audit_log` 有前后值。
+- 语言三选一切换并记住；暗色切换正常。
+- `pytest / ruff / pyright / check_pii` 全绿；`npm run build && npm run lint` 通过。
+- 由用户验收，Claude Design 的四页 HTML 到齐后对照校正视觉细节。
 
 ---
 
-## Phase 2 · 可信与可控
+## 第 2 步 · 信息获取
 
-**目标**：看板可信、可改；LinkedIn 官方导出补上 Gmail 看不到的申请；用户可通过聊天 / 语音 / CLI 改状态、记申请，全部经确认门；有每日摘要与提醒；有备份；有设计文档；有一个每天愿意打开的只读 Web 看板。
+### 2a · Gmail 接入
+
+**目标**：过去 180 天在 Gmail 留下痕迹的每一个选考流程自动出现在看板上；新邮件 2 分钟内更新；外部写操作在结构上不可能。
 
 范围：
-- **`docs/DESIGN.md`（前置交付物）**：由 Claude Design 按 `docs/design/claude-design-prompt.md` 分批产出（tokens.css、信息架构与 8 条流程、13 页 HTML 原型 + 2 张手机版、组件规范、三语字典），落到 `docs/design/output/` 后蒸馏成本文件；设计语言沿用 MITA Finance（D22）。可与 Phase 0 / 1 并行进行，不阻塞后端。
-- 迁移 0002 / 0003：`source_import` + `li_*`、`pending_actions`、`egress_log`。`jobpilot import linkedin <zip>`（表头驱动、自然键幂等、原 ZIP 归档、Easy Apply 合并为 `application(channel='linkedin_easy_apply')`）；应用内下载清单与「Did you apply? 一律答是」提示；LinkedIn 邮件通知设置提醒。
-- `actions.py` 与提议 / 确认 MCP 工具；CLI 对应 `set-status / log / note / exclude / merge / split`；优先级矩阵；含糊匹配 → `candidates_json`。
-- `jobpilot review`：走查待复核分类，接受 / 拒绝回写 `user_confirmed` 与 `rule_stat`；规则三档精度门槛生效。
-- `jobpilot today`：今日与本周截止、待排期、需跟进、门户待查看；Windows toast 可选。
-- 密钥与出站：Linux Fernet 令牌后端；`egress_log` + `jobpilot egress-report`。
-- 登录自启（schtasks ONLOGON）；日志轮转。
-- `jobpilot backup` / `restore`（SQLite online backup API 到 `backups/`，保留 14 份）；文档说明把数据目录排除在云同步之外。
-- **只读 Web 看板**：FastAPI（127.0.0.1）+ React / Vite 单页，按 `DESIGN.md` 落地：pipeline 看板、申请详情（事件、关联邮件主题、门户链接）、截止与待办列表、信息源状态条。先做桌面端。不含聊天、不含写操作（写操作仍走 CLI / MCP 确认）。
-- 匿名化夹具生成器 `jobpilot fixtures anonymize` 完整版。
+- 区域包数据：`regions/japan/data/` 与 `regions/global_en/data/` 的 senders / urls / phrases / company_suffixes / stages（平台级模式，每条 `verified` + 来源 URL；公司租户写本地 `user_senders.yaml`）。
+- `classify/rules.py`、`classify/phrases.py`：发件人 / URL 匹配、短语打分、放行门。
+- `services/resolve.py`（别名 → 归一化 → 模糊匹配，thread 粘连）、`services/pipeline.py`（每封一事务：分类 → 公司解析 → 申请 / 事件 upsert → 状态重算 → 待复核门 → 分类落库）、`services/gmail_sync.py`（回填 + `history.list` 增量 + 404 重拉 + 退避）。
+- `classify/pii.py`、`truncate.py`、`schemas.py`、`llm.py`（pydantic-ai 分类器）：**默认关闭**，`JOBPILOT_CLASSIFIER_MODEL` 为空时只走规则 + 待复核；用户回答 REQUIREMENTS 9.2 第 3 问后再开。
+- 14 天 → `followup_needed`；30 天 → ghosted；现雇主域名例外；D23 自动新建申请的条件。
+- CLI：`sync --backfill-days`、`senders`、`watch`、`company employer`；网页：信息源页（账号列表、健康状态、最近同步）、待复核页（接受 / 改归 / 忽略）、看板的信息源健康条与「最近变化」接自动事件、Pipeline 来源徽标 Gmail。
+- 用户侧：Auth Platform 点击 Publish app（In production，不提交验证），重新授权，8 天后确认令牌仍有效。
 
-不做：Calendar、记忆抽取、岗位搜索、应用内聊天、语音代码、LinkedIn 任何网络访问。
+退出标准：看板列出过去 6 个月每一个流程，随机 30 条 ≥ 27 条正确；`watch` 运行时新邮件 2 分钟内成为事件；只读守卫通过；若开了 LLM，180 天回填费用有记录且约 15 美元以内。
 
-退出标准：
-- `DESIGN.md` 评审通过并被前端实现引用。
-- 同一 ZIP 导入两次零新增；新 ZIP 只增增量；每条 Easy Apply 申请都在 `application` 中并链接到 Gmail 事件。
-- 在 Claude Desktop 说「把 Acme SWE 标为落选」产生提议摘要，确认前无变化，确认后 `audit_log` 有前后值。
-- 重启后 1 分钟内 `watch` 自动运行。
-- 浏览器打开看板，数据与 CLI 一致，页面在 1 秒内渲染 200 条申请。
-- `egress-report` 报告零非 GET（令牌刷新与 LLM 端点除外）。
+### 2b · LinkedIn 导出导入
+
+迁移 0002：`source_import` + `li_*`。`jobpilot import linkedin <zip>`（表头驱动、自然键幂等、原 ZIP 归档、Easy Apply 合并为 `application(channel='linkedin_easy_apply')`）；信息源页「导入 ZIP」入口与摘要。退出：同一 ZIP 导入两次零新增；每条 Easy Apply 申请在 `application` 中并链接到 Gmail 事件。
+
+### 2c · Calendar 面试
+
+迁移 0003：`interview_event`。`connectors/gcal/sync.py`（syncToken 增量，410 重拉，只读守卫扩展到 Calendar）；Calendly 与日历邀请邮件产出事件；面试页（月份概览 + Agenda，确认 vs 待排期，无链接显示待确认）；看板「后续面试」区接真实数据。退出：过去 90 天每个面试邀请成为 `interview_event` 并链接到正确申请；`meeting_url` 缺失时 UI 显示待确认。
 
 ---
 
-## Phase 3 · 日历与记忆 v1
+## 第 3 步 · 对话
 
-**目标**：面试成为一等对象（确认 vs 待排期，JST，链接或明确「待确认」）；应用开始通过可审阅的收件箱记住画像与偏好；看板与面试在手机上可用。
+### 3a · 只读问答
 
-范围：
-- 迁移 0004：`interview_event`；`connectors/gcal/sync.py`（syncToken 增量，410 重拉）；与申请关联；Calendly 与日历邀请邮件（Sender 头识别）产出事件；本地 `.ics` 生成供手动导入。
-- MCP 工具 `list_interviews / get_next_interview`；看板与 Web UI 增加「面试」区（月份概览 + Agenda）。
-- 迁移 0005：`profile_facts`（含在职类别）、`company_intel`、`profile_snapshot`、`extraction_runs`、`memory_fts`；`memory/{facts,render}.py`；取代逻辑；过期默认值。
-- MCP 工具 `get_profile / search_memory / propose_memory_fact`；资源 `jobpilot://profile`。
-- 种子：按 `campaign.kind` 分组的引导问卷（新卒组 / 中途组）→ 候选事实；LinkedIn Job Seeker Preferences → 候选事实；**ChatGPT / Claude 对话导出导入**（`jobpilot import chat <file>`）→ 同一抽取管线 → 收件箱。
-- `jobpilot memory inbox` CLI 与 Web UI 收件箱页。
-- 用户档案设计讨论（D17）在本阶段开工前完成，`profile_facts` 与结构化 profile 的分工据此定稿。
-- 响应式验收：看板与面试 Agenda 在 390 px 宽度可用；`tailscale serve` 手机访问文档。
+- `tools/readonly.py`（`list_pipeline / get_application / search_emails / get_sync_status`，返回值经 `pii_aliases` 脱敏）；`mcp_server.py`（`MCPServer('jobpilot')`，`ToolAnnotations` 只读提示）；注册到 Claude Desktop / Claude Code / Codex（`docs/guides/mcp-hosts.md`）。
+- 应用内对话页（设计 B 第 08 页）：pydantic-ai `Agent` 复用同一工具注册表，Claude / GPT 切换，流式，动作卡；只读，不产生提议。
+- 退出：在宿主与应用内各问一次「我在面试哪些公司，本周截止什么」，回答引用 `[app:id]`，查不到时说无记录；MCP 返回值不含原始邮箱 / 电话 / 人名。
 
-不做：embedding、自动每轮抽取（需自有聊天）、情节摘要、岗位搜索。
+### 3b · 提议 / 确认与语言操作
 
-退出标准：
-- 过去 90 天主日历里每个面试邀请都成为 `interview_event` 并链接到正确申请；邮件写「オンライン面接」无链接时 `meeting_url` 为空且 UI 显示待确认。
-- 在 Claude Desktop 说「希望年収は 600 万以上、東京勤務、リモート可が理想」产生三条候选事实；确认后 `get_profile()` 返回；再说一个不同年薪后旧事实被取代且 `valid_to` 有值。
-- 日历同步从不发出非 GET（守卫测试扩展到 Calendar 服务）。
-- 手机通过 Tailscale 打开看板与面试页可正常使用。
+- 迁移 0004：`pending_actions`、`egress_log`。`actions.py` 与 `propose_* / confirm_action` 工具；确认卡片；`jobpilot review` 与网页待复核裁决回写 `user_confirmed` 与 `rule_stat`；`jobpilot today`；`egress-report`。
+- 退出：说「把 Acme SWE 标为落选」产生提议摘要，确认前无变化，确认后 `audit_log` 有前后值；`egress-report` 零非 GET（令牌刷新与 LLM 端点除外）。
 
 ---
 
-## Phase 4 · 岗位搜索 v1
+## 第 4 步 · 岗位搜索 v1
 
-**目标**：从条款干净、无需登录、只读的来源发现并排序新岗位，使用画像事实与申请历史，永不重复展示已申请或已驳回的岗位，每条岗位带来源、核验日期与目击记录。
+迁移 0005：`watch_target / job_posting / job_canonical / job_sighting / job_judgement / job_note / job_interactions / research_request / job_features / job_scores / preference_weights / fit_signals / search_runs`；`application.canonical_id`。`connectors/boards/`（`GetOnlyTransport`：限速、ETag、robots；Greenhouse / Lever / Ashby / SmartRecruiters / Workable / Recruitee / Teamtailor / Rippling + ATS 自动识别）；网页搜索工具作为只读发现源；核验（连续 3 次未见 → 待核实）；`search/dedupe.py`、`search/scoring.py`（硬过滤 → 陈述权重 → LLM 重排前 20）；`search/research.py`（研究请求模板 → 提示词 → 粘贴回填）；`evaluate_posting`；岗位工作台、侧板、并排比较、研究请求页；招聘状态四分与核验日期。可选 Adzuna / JSearch 默认关闭。不做登录站抓取、Workday `cxs`（待裁定）。
 
-范围：
-- 迁移 0006：`watch_target`、`job_posting`（含 `hiring_track`、`industry`、`tags_json`、`deadline_at`）、`job_canonical`、`job_sighting`、`job_judgement`、`job_note`、`job_interactions`、`research_request`、`job_features`、`job_scores`、`preference_weights`、`fit_signals`、`search_runs`；`application.canonical_id`。
-- `connectors/boards/`：`GetOnlyTransport`（限速、ETag、robots）；Greenhouse / Lever / Ashby / SmartRecruiters / Workable / Recruitee / Teamtailor / Rippling 连接器 + ATS 自动识别，每次轮询写 `job_sighting`；Gmail 岗位提醒解析为 `job_posting`；`connectors/websearch/`（Anthropic / OpenAI 提供商网页搜索工具作为只读发现源）；TokyoDev / Japan Dev 在核实条款后加入。
-- 核验：连续 3 次未见 → 关闭并降为待核实；`jobpilot job verify <id>` 手动目击；`jobpilot jobs cleanup` 把失效岗位移入排除记录并保留原因 / 时间 / 来源。
-- `search/dedupe.py`、`search/scoring.py`（SQL 硬过滤含现雇主排除 → 陈述权重软分 → LLM 重排前 20，结构化输出含匹配理由、缺口、AI 相关度、成长性、是否需先实习，盖画像快照哈希）。
-- `search/research.py`：研究请求模板（搜索新岗位 / 复核清单 / 可主动敲门的公司与团队 / 清理失效岗位）→ 提示词 → 用户外部执行 → 粘贴结构化结果 → 解析为 `job_posting(source='llm_research')` 或特别线索 → 待复核。
-- `evaluate_posting(url_or_text)`：粘贴 JD → 判断 → 存手动岗位 → 可选记录申请。
-- MCP 工具 `search_jobs / get_job / evaluate_posting / propose_save_job / propose_dismiss_job / create_research_request / import_research_result`；Web UI 岗位列表、卡片（收藏 / 加入比较 / 前往官方入口 / 备注）、详情、最多三个并排比较、研究请求页。
-- 招聘状态四分与核验日期；「复核官方页面」一键跳转。
-- 可选：Adzuna、JSearch，默认关闭。
+退出：`jobpilot jobs` 列出排序结果并解释过滤；驳回 5 条后不再出现；关闭岗位 3 个轮询内标记待核实；一次研究请求 10 分钟内回填；24 小时内所有岗位源请求为 GET / HEAD；粘贴 JD 30 秒内得到判断并可一键记录申请。
 
-不做：抓取任何登录站；Workday `cxs`（待裁定）；学习权重；embedding。
+## 第 5 步 · 记忆 v1
 
-退出标准：
-- `jobpilot jobs` 列出排序结果，每条硬过滤失败有解释，无一条与现有申请或已驳回岗位重复，每行有来源署名、核验日期与最近目击时间。
-- 驳回 5 条后再搜索永不再现；收藏后记录申请能自动关联到规范岗位。
-- 关闭的岗位在 3 个轮询周期内被标记为待核实并可一键移入排除记录。
-- 一次研究请求从生成提示词到结果回填进待复核在 10 分钟内完成。
-- 24 小时内所有岗位源请求为 GET / HEAD；每源配额未超。
-- 粘贴一条 JD 链接，30 秒内得到匹配判断与缺口，并可一键记录申请。
+用户档案设计讨论（D17）先定稿。迁移 0006：`profile_facts / company_intel / profile_snapshot / extraction_runs / memory_fts`；`memory/{facts,render}.py`；取代逻辑与过期默认值；MCP 工具 `get_profile / search_memory / propose_memory_fact`；引导问卷（按 `campaign.kind`）、LinkedIn Job Seeker Preferences、ChatGPT / Claude 对话导出（`jobpilot import chat`）→ 同一抽取管线 → 记忆收件箱页；每轮对话后 `MemoryExtraction` 提议（D15 例外可自动生效）；会话摘要。
 
----
+退出：说「希望年収は 600 万以上、東京勤務、リモート可が理想」产生三条候选事实；确认后 `get_profile()` 返回；再说不同年薪后旧事实被取代且 `valid_to` 有值。
 
-## Phase 5 · 应用内对话与语音
+## 第 6 步 · 学习循环与加固
 
-**目标**：不再依赖宿主：本地 Web UI 内置对话面板，Claude / GPT 下拉切换，流式，确认卡片，ja / zh / en 按住说话，语音驱动看板，会话持久化并自动喂给记忆抽取。
+`search/learn.py` 夜间任务（`w_learned`、半衰期、冷启动守卫）；sqlite-vec + 本地多语言 embedding（先做 50 条真实查询小评测）；情节摘要滚动汇总；可选 SQLCipher；正文清理与非求职邮件 30 天清理；`jobpilot backup / restore`；Windows toast 提醒；手机 390 px 适配（看板、面试）与 Tailscale 访问文档。
 
-范围：
-- `web/app.py` lifespan（DB、迁移、APScheduler 3.11 取代 `watch`）、`/api/chat` SSE、`/api/events`。
-- pydantic-ai `Agent` 复用工具注册表；写操作 `requires_approval=True`；确认卡片；`ui_command` 由前端执行；确认关键词程序匹配。
-- 迁移 0007：`chat_sessions / chat_turns / episode_summaries`；每轮后 `MemoryExtraction` 提议进收件箱（D15 例外可自动生效并可撤销）；每 40 轮或会话结束生成 `episode_summaries`。
-- 前端：聊天面板、麦克风按钮（Web Speech，语言切换）、可选 `/api/voice/transcribe`；TTS 默认关闭。
-- 语音可操作动作清单落地（11 项），每条有确定性意图后备。
-- 落地回归套件（固定问题与指令 → 期望工具调用），两家提供商各跑。
+退出：4 周后 precision@10 优于纯陈述权重；驳回 10 条纯现场岗位后排名可见下降；若启用加密，FTS5 与 sqlite-vec 在加密连接上工作。
 
-不做：唤醒词、常开麦克风、实时流式转写、桌面壳、安装包、ChatGPT 网页端接入。
+## 第 7 步 · 发布与部署
 
-退出标准：
-- 会话中途在下拉里切换 Claude 与 GPT，工具与历史不变。
-- 说「显示下周的面试」导航看板；说「把 Acme 标为落选」出现确认卡片且确认前无变化。
-- 聊天中陈述的事实一轮内出现在记忆收件箱；被否决的不再提议。
-- 回归套件在两家提供商上全部通过。
+`jobpilot init` 引导向导（数据目录、区域包、周期、Google Cloud 分步说明、OAuth 客户端导入、LLM key、现雇主域名）；Dockerfile 多架构、compose、托管指南（GCP 或其他云、Tailscale / VPS）、登录自启（schtasks ONLOGON / systemd）、日志轮转；文档英文版与 UI 文案复核；`docs/research` 脱敏；匿名化夹具与示例数据集；许可、贡献指南、安全披露；去除任何针对首个用户的默认值。
 
----
-
-## Phase 6 · 学习循环与加固
-
-**目标**：搜索从你的行为与结果中可度量地变聪明；检索语义化；存储与隐私加固。
-
-范围：
-- `search/learn.py` 夜间任务：`w_learned`、混合、半衰期、冷启动守卫；`fit_signals` 作为重排上下文；结果推断的候选事实进收件箱；权重页（陈述 / 学习 / 样本数）。
-- sqlite-vec + 本地多语言 embedding（先做 50 条真实查询的小评测再定模型）；`chunks` 与 RRF 混合检索；相似度 > 0.95 的近重复压制。
-- 情节摘要的每周滚动汇总与压缩策略（每 40 轮摘要已在 Phase 5）。
-- 可选 SQLCipher（`sqlcipher3`，DPAPI 保护的密钥，默认关闭）；正文清理策略；非求职邮件元数据 30 天清理。
-- 可选来源白名单：Workday `cxs`（若裁定允许）、BambooHR、付费聚合器；`users.watch` + Pub/Sub（若解除字面约束）。
-- Windows toast：新面试邀请与截止。
-
-退出标准：
-- 4 周交互后，对留出一周岗位的排序 precision@10（按收藏 / 申请）优于纯陈述权重。
-- 行为验收：在无陈述偏好的情况下驳回 10 条纯现场岗位，现场岗位排名可见下降且权重页解释原因。
-- 若启用加密：数据库仅在持有密钥时可打开；FTS5 与 sqlite-vec 在加密连接上工作。
-
----
-
-## Phase 7 · 对外发布
-
-**目标**：任何人能在 30 分钟内跑起自己的 Mita JobPilot，且仓库里没有作者的身份信息。
-
-范围：
-- `jobpilot init` 引导向导：数据目录、区域包、求职周期、Google Cloud 项目分步说明（截图）、OAuth 客户端文件导入、LLM key、浏览器选择、现雇主域名（可选）。
-- Dockerfile 多架构镜像、compose、Tailscale / VPS 部署指南、备份指南。
-- UI 文案 i18n（zh / ja / en），文档英文版。
-- **文档脱敏**：逐文件清理 `docs/research` 中「the user's own / this user / for the user」及雇主、签证、机器路径表述；`scripts/check_pii.py` 作为 pre-commit hook，对 tracked 文件匹配内置模式与本地 denylist，命中即拒绝提交。
-- 匿名化夹具与示例数据集（虚构公司），CI 跑全部守卫测试。
-- 许可、贡献指南、安全披露说明、隐私与提供商条款提醒；`pyproject.toml` 元数据补齐（作者不填个人邮箱）；确认全部提交作者均为 GitHub noreply 地址（D19，已于 2026-09-17 切换）。
-- 去除任何针对首个用户的默认值。
-
-退出标准：一位没参与开发的人按 README 在另一台机器上完成安装、授权、回填并看到看板；`uv run scripts/check_pii.py` 在全量 tracked 文件上零命中。
-
----
-
-## 第一周计划（Phase 0 + Phase 1 主体；第二周做退出标准验收、规则修正与 8 天浸泡）
-
-| 场次 | 时长 | 内容 |
-|---|---|---|
-| 1 | 2.5 h | Google Cloud 项目、两个只读范围、Desktop 客户端、`client_secret.json` 放到数据目录 `secrets/`。Phase 0 骨架已完成（2026-09-17）；`uv add` Google 依赖；`readonly_http.py`、`auth.py`；`uv run jobpilot auth google` 完成 loopback 授权并断言范围；`jobpilot campaign add` 创建首个周期。 |
-| 2 | 3 h | `store/db.py` + 迁移 0001（含 `pii_aliases`）；`connectors/gmail/sync.py` 回填；`uv run jobpilot sync --backfill-days 180`；`jobpilot senders`，阅读输出：平台级模式进 `regions/japan/senders.yaml`（附公开来源），公司租户进本地 `user_senders.yaml`。 |
-| 3 | 3 h | 规则表与短语表（日本包 + 全球包，带 `verified`）；`EmailClassification` schema；放行门；`tests/test_rules.py` 10 到 20 条匿名夹具；`history.list` 增量与 404 回退；`jobpilot watch`。提交。 |
-| 4 | 3 h | `classify/llm.py`（pydantic-ai 结构化输出，PII 别名，截断，缓存，成本日志，提示注入分块）；对回填中放行 / 含糊邮件跑一遍；抽 30 条复核，修提示词或规则。API key 入 keyring。 |
-| 5 | 3 h | `resolve.py`（别名 → 归一化 → 模糊，thread 粘连）、`pipeline.py`（幂等事件、状态重算、截止与下一步、待复核、门户待查看、跟进与 ghosted、现雇主例外）、`status.py`；`jobpilot board`、`jobpilot show`。看一遍看板，记下每条错误留给 Phase 2。 |
-| 6 | 2.5 h | `tools/registry.py` + 只读工具（返回值脱敏）；`mcp_server.py`；`uv run mcp dev` 调试；注册到 Claude Desktop、Claude Code、Codex；先打字再用 Win+H 与 Claude Desktop 语音模式问「哪些流程在进行，本周截止什么」。记录语音模式是否调用了本地工具。 |
-| 7 | 1.5 h | `test_readonly_guard.py`；`pytest`、`ruff`、`pyright`、`check_pii`；Auth Platform → Publish app（不提交验证）→ 删除令牌重新授权 → 设 8 天后提醒；提交。顺手申请 LinkedIn Jobs 档导出，Phase 2 开始时 ZIP 已就位。 |
+退出：一位没参与开发的人按 README 在另一台机器上完成安装、授权、回填并看到看板；`check_pii.py` 全量零命中。
 
 ---
 
 ## 与当前日期的关系
 
-今天 2026-09-16 处于 2027 卒秋採用窗口；内定式 2026-10-01。Phase 1 完成时（约 10 月初）看板应已覆盖秋採用期间收到的所有邮件；Phase 2 的提醒功能应在 10 月中旬可用，正好覆盖秋 / 冬採用的密集截止期；若周期开启了留学生标记，在留资格变更窗口（2026-12-01 至 2027-01-31）会作为日本包的周期里程碑在 Phase 3 出现于日程视图。
+今天 2026-09-18 处于 2027 卒秋採用窗口；内定式 2026-10-01。第 1 步完成后即可手动记录进行中的流程；第 2a 步完成时看板应已覆盖秋採用期间收到的所有邮件；若周期开启了留学生标记，在留资格变更窗口（2026-12-01 至 2027-01-31）会作为日本包的周期里程碑在第 2c 步出现于日程视图。

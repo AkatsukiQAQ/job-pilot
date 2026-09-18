@@ -31,3 +31,15 @@
 - 用户用中文交流；回复与文档用中文，技术名词保留英文。
 - 用户的真实邮箱、雇主、账号、签证信息不写入仓库任何文件，包括 `docs/research/`。
 - 涉及外部服务的新集成、新依赖、新的数据外发路径，先在 `docs/REQUIREMENTS.md` 的决策表里记录再实现。
+- **严格按用户指定的范围开发**：没说的不做；可以建议额外工作，但未获同意不动手。发现 bug 只向用户报告，不擅自修改。不自行跑 smoke test。
+- 代码尽量精简、好维护：能用一个函数解决就不建类，不为未来需求预留抽象。
+- 出计划时要解释每个模块是做什么的、为什么需要，计划里出现的参数名也要解释。
+- 每个开发步骤开专门分支（`step1-board`、`step2a-gmail` …），用户验收后合回 `main`。
+
+## 前端约定（`frontend/`）
+
+- React 19 + Vite 7 + TypeScript + Tailwind v4（CSS-first，无 `tailwind.config.js`）+ TanStack Query 5 + React Router 7 + lucide-react，npm 管理；工程文件与姊妹项目 MITA Finance 一致。
+- `frontend/src/tokens.css` 是 `docs/design/v1/tokens.css` 的拷贝，改 token 先改 `docs/design/v1/`。
+- 界面文案全部走 `src/i18n/{zh,ja,en}.ts` 字典，不在组件里硬编码；用户数据（公司名、岗位名）保持原文。
+- 页面示例与测试数据只用虚构公司（Acme 等）；不出现任何真实公司作为「用户申请过的公司」。
+- 页面上不存在「发送 / 投递 / 回复 / 申请」按钮；官方入口一律外链。
