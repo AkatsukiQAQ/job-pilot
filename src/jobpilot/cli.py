@@ -570,6 +570,26 @@ def doctor(
 
 
 @app.command()
+def serve(
+    ctx: typer.Context,
+    host: Annotated[str | None, typer.Option(help="Bind address (default JOBPILOT_HOST).")] = None,
+    port: Annotated[int | None, typer.Option(help="Port (default JOBPILOT_PORT).")] = None,
+    reload: Annotated[bool, typer.Option("--reload", help="Restart on code changes.")] = False,
+) -> None:
+    """Run the local web board: JSON API plus the built frontend."""
+    import uvicorn
+
+    from jobpilot.web.app import create_app
+
+    s = _ctx(ctx).settings
+    bind = {"host": host or s.host, "port": port or s.port}
+    if reload:
+        uvicorn.run("jobpilot.web.app:app_from_env", factory=True, reload=True, **bind)
+    else:
+        uvicorn.run(create_app(s), **bind)
+
+
+@app.command()
 def init(ctx: typer.Context) -> None:
     """Create the data directory, apply migrations, bootstrap the first campaign from env."""
     app_ctx = _ctx(ctx)

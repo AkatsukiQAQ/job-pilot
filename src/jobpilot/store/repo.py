@@ -131,6 +131,37 @@ class CampaignRepo:
         ).fetchone()
         return Campaign.from_row(r) if r is not None else None
 
+    def set_active(
+        self, campaign_id: int, *, actor: Actor = "user", source: str = "web"
+    ) -> Campaign:
+        """Make one campaign the active one (all others become inactive). Audited."""
+        with transaction(self.conn):
+            before = self.conn.execute(
+                "SELECT * FROM campaign WHERE campaign_id = ?", (campaign_id,)
+            ).fetchone()
+            if before is None:
+                raise KeyError(campaign_id)
+            self.conn.execute(
+                "UPDATE campaign SET is_active = 0 WHERE is_active = 1 AND campaign_id <> ?",
+                (campaign_id,),
+            )
+            row = self.conn.execute(
+                "UPDATE campaign SET is_active = 1 WHERE campaign_id = ? RETURNING *",
+                (campaign_id,),
+            ).fetchone()
+            assert row is not None
+            write_audit(
+                self.conn,
+                actor=actor,
+                action="campaign.set_active",
+                table_name="campaign",
+                row_id=campaign_id,
+                before=before,
+                after=row,
+                source=source,
+            )
+        return Campaign.from_row(row)
+
     def count(self) -> int:
         return int(self.conn.execute("SELECT COUNT(*) FROM campaign").fetchone()[0])
 

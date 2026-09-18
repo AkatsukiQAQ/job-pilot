@@ -22,6 +22,8 @@ dependencies = [
   "google-auth-oauthlib>=1.4.1,<2",          # InstalledAppFlow.run_local_server: loopback + PKCE S256 by default
   "google-auth-httplib2>=0.4.2,<1",          # AuthorizedHttp base of ReadOnlyHttp (only __init__/request are used)
   "httplib2>=0.22.0,<1",
+  "fastapi>=0.120,<1",
+  "uvicorn[standard]>=0.34,<1",
 ]
 
 [project.scripts]
@@ -36,6 +38,7 @@ dev = [
   "pre-commit>=4.6,<5",
   "types-pyyaml>=6.0.12",
   "types-pywin32>=310",                      # unconditional: pyright on Linux must resolve win32crypt
+  "httpx>=0.28,<1",
 ]
 
 [build-system]
