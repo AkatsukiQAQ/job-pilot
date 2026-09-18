@@ -14,7 +14,7 @@
 
 ### 1.1 一句话
 
-Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对话与记忆的个人求职工作台**：自动从 Gmail / Google Calendar / LinkedIn 导出等信息源推导出每一个选考流程的状态，帮助用户比较岗位、追踪进度、管理日程，并用 Claude 或 GPT 对话（含语音）操作系统和获取建议。
+Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对话与记忆的个人求职工作台**：自动从 Gmail / Google Calendar / LinkedIn 导出等信息源推导出每一个选考流程的状态，帮助用户比较岗位、追踪进度、管理日程，并用 Claude 或 GPT 对话操作系统和获取建议。
 
 项目名 **Mita JobPilot**（与本地 PyCharm 项目目录 JobPilot 一致）；包名、命令与 MCP 服务名为 `jobpilot`，环境变量前缀 `JOBPILOT_`（决策 D18）。
 
@@ -24,7 +24,7 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 |---|---|---|
 | 使用者 | 作者本人 | **作者本人 + 任何愿意自托管的人**。作为可自托管的个人项目发布，每人运行一套自己的实例、使用自己的 API key 和 OAuth 凭据。不做多租户 SaaS。先私有自用，稳定后再考虑公开与许可证（决策 D19）。 |
 | 求职阶段 | 日本 2027 年卒新卒就活 | **任意求职周期**：新卒（日本 2027 卒是首个真实场景）、将来的中途 / 转职、以及其他国家的求职。日本特有逻辑做成可插拔的「区域包」，状态机、事件、画像、引导问卷都按周期类型分派，不写死。 |
-| 对话方式 | 生成提示词手动贴给 GPT（原型做法） | 应用内直接接入 Claude / GPT 的聊天框，可切换，带只读工具与语音操作。保留「生成研究提示词 → 外部执行 → 结构化结果回填」作为一种补充能力。 |
+| 对话方式 | 生成提示词手动贴给 GPT（原型做法） | 应用内直接接入 Claude / GPT 的对话页，可切换，带只读工具与提议 / 确认操作。保留「生成研究提示词 → 外部执行 → 结构化结果回填」作为一种补充能力。 |
 | 外部操作 | 原型要求「发送前二次确认」 | **目前全部禁止**：不发送、不回复、不申请、不写日历、不改标签。只读。 |
 
 ### 1.3 与现有工具的差别
@@ -38,7 +38,7 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 - 以日本 2027 卒周期为首个场景，处于该周期尾段（秋採用 / 通年採用窗口）。
 - 背景：AI Agent 产品开发、多模态 / VLM 研究、端到端工程交付。
 - 目标岗位：Applied Research Engineer、Forward Deployed Engineer、Machine Learning Engineer、Software Engineer、AI Product / Applied AI；行业不限于 AI 公司，包括制造、自动驾驶、机器人、金融、咨询。
-- 语言：中文、日语、英语混用。邮件、岗位描述、语音都可能三语混杂。
+- 语言：中文、日语、英语混用。邮件、岗位描述、对话都可能三语混杂。
 - 将来在职跳槽时，同一套系统要能切换到「中途」周期继续使用。
 
 ---
@@ -67,7 +67,7 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 | 核心 | 每条记录保存：当前状态、更新时间、当前情况、下一步行动、截止日期、信息来源（手动 / Gmail / Calendar / LinkedIn 导出）。 |
 | 核心 | 事件流（append-only）：报名、ES 提交、书类选考、笔试、面试各轮、结果、内々定、内定、承诺、辞退、退职交涉、入职、跟进提醒等。 |
 | 核心 | 低置信度的自动识别进入「待复核」队列，不直接改状态。 |
-| 重要 | 「门户待查看」事件：邮件只写「マイページをご確認ください」时，记录一条带门户链接的待办，用户可一键或语音回填结果。 |
+| 重要 | 「门户待查看」事件：邮件只写「マイページをご確認ください」时，记录一条带门户链接的待办，用户可一键回填结果。 |
 | 重要 | 跟进与沉默：14 天无回复生成「需跟进」事件并进入今日待办；30 天仍无事件则打上 ghosted 标记（看板灰显，不改状态）。截止提醒：ES 截止、Web テスト期限、24 小时内面试。 |
 | 重要 | 公司别名表：处理「株式会社Acme / Acme Inc. / acme.co.jp」等中日英与域名变体，避免同一公司被拆成多条。 |
 | 重要 | 同一公司多流程：实习、本選考、中途、不同职位分开记录（申请记录带 track 字段）。 |
@@ -84,7 +84,7 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 | 重要 | LinkedIn 官方数据导出 | 手动下载 ZIP，应用内导入（Job Applications、Saved Jobs、Job Seeker Preferences、messages 等 CSV），幂等，带导入批次来源。 |
 | 重要 | 日本就活平台通知邮件 | マイナビ、リクナビ、ONE CAREER、外資就活、OfferBox、LabBase、Wantedly、アカリク 等只能通过邮件接入，发件域名表见区域包。 |
 | 核心 | 多邮箱 | 邮箱由用户登录添加，不预设也不限定数量；每个 Google 账号独立令牌与同步游标，看板与搜索跨账号合并（决策 D20）。 |
-| 后续 | 其他渠道缺口 | LINE 公式アカウント、电话、SMS、Slack Connect 等无法接入，提供手动 / 语音记录与「粘贴邮件或截图 → 结构化」的补录路径。 |
+| 后续 | 其他渠道缺口 | LINE 公式アカウント、电话、SMS、Slack Connect 等无法接入，提供手动记录与「粘贴邮件或截图 → 结构化」的补录路径。 |
 | 禁止 | 任何平台的登录态抓取 | LinkedIn、マイナビ、リクナビ、Wantedly、Bizreach、OpenWork 等明文禁止或有兜底条款，且封号风险发生在求职中期不可接受。 |
 
 ### 3.3 岗位搜索与匹配
@@ -102,17 +102,16 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 | 重要 | 最多三个岗位并排比较：工作内容、匹配度、技能缺口、薪资、成长性、截止时间、申请资格、不确定事项、建议下一步。 |
 | 后续 | 从结果学习：申请 / 收藏 / 忽略 / 驳回反馈到偏好权重；显示「陈述权重 vs 学习权重」及样本数；样本不足时不学习。 |
 
-### 3.4 对话与语音
+### 3.4 对话
 
 | 优先级 | 需求 |
 |---|---|
-| 核心 | 应用内聊天框，可选 Claude 或 GPT；答案必须基于应用数据库（工具检索），引用记录 ID；查不到就说「记录中没有」，不编造。 |
+| 核心 | 应用内全页对话（ChatGPT 式工作台，见设计交付物 B 第 08 页），可选 Claude 或 GPT；答案必须基于应用数据库（工具检索），引用记录 ID；查不到就说「记录中没有」，不编造。 |
 | 核心 | 所有会改本地数据的操作两阶段：模型只能「提议」，用户「确认」后才执行；外部写操作不存在对应工具。 |
-| 重要 | 应用内对话面板细节：流式输出、提供商下拉切换、确认卡片、会话持久化并喂给记忆抽取。 |
-| 重要 | 语音：按住说话（push-to-talk），支持 ja / zh / en；语音可执行的操作明确枚举（清单以 ARCHITECTURE.md 第 9 节为准）：显示看板、按状态筛选、打开某公司申请、下一个面试、本周截止、改状态、记录申请、记录备注、门户回填、评估这条岗位、收藏或驳回岗位。确认关键词（确认 / はい / yes）由程序正则匹配，不经模型。 |
-| 后续 | 三语混说（code-switching）识别、公司名词表增强、可选的服务端转写（OpenAI 转写 / 本地 whisper）。不做唤醒词、不做常开麦克风。 |
+| 重要 | 对话页细节：流式输出、提供商切换、每一步系统操作一张动作卡、确认卡片、会话持久化并喂给记忆抽取。 |
+| 不做 | 语音（按住说话、语音操作、转写）。用户 2026-09-18 决定不做（决策 D31）。 |
 
-**过渡方案（实现决策 D3，不是需求）**：Phase 1 到 4 借 MCP 宿主提供对话入口，Claude 侧为 Claude Desktop / Claude Code，GPT 侧仅 Codex CLI（终端工具）；语音以 Windows Win+H 听写进宿主为保底，Claude Desktop 语音模式能否调用本地 MCP 工具未证实，第一周实测。应用内聊天框按当前路线图在 Phase 5 到位（用户已确认，见 9.1）。
+**顺序（决策 D26）**：对话是第 3 步，先只读问答（3a：MCP 只读工具供 Claude Desktop / Claude Code / Codex 调用，同时应用内对话页只读），再加提议 / 确认与语言操作（3b）。
 
 ### 3.5 记忆系统
 
@@ -137,8 +136,9 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 | 核心 | 卡片 / 详情的动作：收藏、加入比较、前往官方入口、记录备注、改应聘状态（经确认门）；面试条目可跳到对应申请并回填结果。侧栏固定入口：看板 / 岗位 / 面试 / 记忆收件箱 / 待复核 / 信息源。 |
 | 重要 | 面试日程：月份概览 + Agenda 列表，统一 JST（时区可配置），确认与待排期分开，无链接显示「待确认」。 |
 | 重要 | 并排比较视图、记忆收件箱、待复核队列、信息源健康状态条（正常 / 降级 / 需重新授权 / 不可用 / 已禁用）。 |
-| 重要 | 设计交付物 `docs/DESIGN.md`（Phase 2 前置）：Mita JobPilot 自己的信息架构（侧栏导航树）、5 到 8 条核心用户流程、页面与组件清单、design tokens。由 Claude Design 按 [design/claude-design-prompt.md](design/claude-design-prompt.md) 产出后蒸馏（决策 D22）。 |
-| 重要 | 视觉方向：沿用姊妹项目 MITA Finance 的设计语言（决策 D22）：暖纸 cream / ink 色板、琥珀点缀、手写体品牌字标与大标题、Fraunces 页面标题、14px 纸感卡片与暖棕阴影、黄色导航高亮、手绘 SVG 图表、右下角 FAB 聊天面板；「待确认」用琥珀虚线占位；安静、轻盈、像求职手账而非 SaaS 后台；线性图标；固定侧栏；高信息密度但不拥挤。原型文档里的「深绿主色 / 薄荷绿选中态」方案作废。 |
+| 重要 | 设计交付物：Claude Design 按 [design/claude-design-prompt.md](design/claude-design-prompt.md) 产出，落在 `docs/design/v1/`（A `tokens.css`、B `ia-and-flows.md` 已交付 2026-09-18；C 页面 HTML、D 组件规范、E 三语字典按 [design/claude-design-prompt-batch2.md](design/claude-design-prompt-batch2.md) 分批交付）。前端直接以 `v1/` 为实现依据，不再单独蒸馏 `DESIGN.md`（决策 D22）。 |
+| 重要 | 视觉方向：沿用姊妹项目 MITA Finance 的设计语言（决策 D22）：暖纸 cream / ink 色板、琥珀点缀、手写体品牌字标与大标题、Fraunces 页面标题、14px 纸感卡片与暖棕阴影、黄色导航高亮、手绘 SVG 图表；对话为侧栏进入的全页工作台，**无右下角 FAB 浮层**（设计 B 已取消）；「待确认」用琥珀虚线占位；安静、轻盈、像求职手账而非 SaaS 后台；线性图标（Lucide）；固定侧栏；高信息密度但不拥挤。原型文档里的「深绿主色 / 薄荷绿选中态」方案作废。 |
+| 重要 | 默认语言跟随浏览器（zh / ja 命中即用，否则 en），可切换并记住（决策 D28）。 |
 | 重要 | 桌面优先、移动可用：看板与面试 Agenda 在 390 px 宽度可用；手机访问（如 Tailscale）有文档。 |
 | 后续 | PWA、桌面通知。 |
 
@@ -292,11 +292,11 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 - Workday 的 `cxs` 搜索接口是 POST（无服务端状态）；是否算「写」需你裁定（见第 9 节）。
 - Anthropic 与 OpenAI 的**提供商侧网页搜索工具**是只读的岗位发现渠道，能覆盖免费 API 到不了的日本新卒信息，作为一个岗位源实现。
 
-### 6.5 对话、语音与 LLM
+### 6.5 对话与 LLM
 
-- 过渡方案零 UI：用官方 `mcp` Python SDK 2.x（`FastMCP` 已改名 `MCPServer`）通过 stdio 暴露只读工具，注册到 Claude Desktop、Claude Code、Codex CLI，即得 Claude 与 GPT 两种对话入口。ChatGPT（Developer mode，仅网页版）不能拉起本地 stdio 服务，需要公网 HTTPS 端点或 OpenAI Secure MCP Tunnel；Codex 已提供 GPT 侧本地入口，暂不做。
-- 语音过渡方案：Windows Win+H 语音输入（支持中 / 日 / 英，走 Azure 在线识别）为保底；Claude Desktop 语音模式（**未证实**它会调用本地 MCP 工具，需第一周实测）；Claude Code `/voice`（支持日语，不支持中文）。
-- 自有 UI 阶段：pydantic-ai 作为 Anthropic / OpenAI 统一层，模型 ID 只放配置；浏览器 Web Speech API 做按住说话。Chrome 默认走 Google 云端识别，支持 zh / ja / en；本地识别需 Chrome 142+ 并按语言下载 language pack，zh / ja 包是否可用需运行时探测；Edge 的本地模型仅 Canary / Dev 且不含 zh / ja，并有静默无结果的报告。OpenAI 转写 API 作为可选后备。
+- 宿主入口（第 3a 步）：用官方 `mcp` Python SDK 2.x（`FastMCP` 已改名 `MCPServer`）通过 stdio 暴露只读工具，注册到 Claude Desktop、Claude Code、Codex CLI，即得 Claude 与 GPT 两种对话入口。ChatGPT（Developer mode，仅网页版）不能拉起本地 stdio 服务，需要公网 HTTPS 端点或 OpenAI Secure MCP Tunnel；Codex 已提供 GPT 侧本地入口，暂不做。
+- 应用内对话页（第 3a / 3b 步）：pydantic-ai 作为 Anthropic / OpenAI 统一层，模型 ID 只放配置。
+- 语音相关调研（Web Speech、Win+H、Claude Desktop 语音模式）因 D31 作废，保留在 `docs/research/` 供参考。
 - 提示词缓存、结构化输出、工具调用格式在两家有差异，由 pydantic-ai 屏蔽；MCP 的 prompt 是用户手动选择的模板，**不是**系统提示，落地约束要靠工具描述与宿主的项目指令文件。
 
 ### 6.6 记忆系统
@@ -333,9 +333,11 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 - 三个不同视角的架构提案（MVP 优先 / 数据模型优先 / 集成风险优先）由三位评审打分，MVP 优先胜出，并吸收另两者的优点，形成 ROADMAP.md。
 - 一轮四视角对抗式核查（78 条发现）并修正。
 
-### 7.3 下一步
+### 7.3 下一步（2026-09-18 更新）
 
-Phase 1「收件箱到看板」。第一步是 Google Cloud 项目（Gmail + Calendar API、两个只读范围、Desktop OAuth 客户端）与 `jobpilot auth google`，见 ROADMAP.md Phase 1 与「第一周计划」。UI 设计由 Claude Design 按 `docs/design/claude-design-prompt.md` 并行推进。
+已完成：Phase 0 骨架；追踪域 schema 与仓储（原 Phase 1 S1）；Google 只读连接器、多账号授权、Gmail API 层（原 S2，`1e95673`）；Google Cloud 项目与 Desktop OAuth 客户端已就位；Claude Design 交付物 A / B 已落 `docs/design/v1/`。
+
+进行中：**第 1 步 基础网页看板**（分支 `step1-board`），见 ROADMAP.md。之后按 D26 顺序：Gmail 接入 → LinkedIn 导出 → Calendar → 对话 → 岗位搜索 → 记忆 → 加固 → 发布与部署。
 
 ---
 
@@ -345,7 +347,7 @@ Phase 1「收件箱到看板」。第一步是 Google Cloud 项目（Gmail + Cal
 |---|---|---|---|
 | D1 | 外部只读，由结构保证 | 用户要求；信任建立前工具只观察不行动 | 用户可解除 |
 | D2 | 本地优先，SQLite 单文件，单进程单写入者 | 单租户、备份简单、FTS5 / sqlite-vec 原生 | 不支持 Postgres，多租户不在范围 |
-| D3 | Phase 1 无自有 UI，对话入口用 MCP 宿主；Phase 2 起加只读 Web 看板；应用内对话面板在 Phase 5 | 把精力先放在数据正确性上，同时尽早有每天打开的界面 | 用户已确认按推荐执行（9.1） |
+| D3 | ~~Phase 1 无自有 UI，对话入口用 MCP 宿主；Phase 2 起加只读 Web 看板；应用内对话面板在 Phase 5~~ 被 D26 取代（2026-09-18） | — | — |
 | D4 | Gmail 走 OAuth Desktop 客户端 + `gmail.readonly` + `calendar.events.readonly`，发布为「In production（未验证）」 | 唯一免费、免审核、且预期令牌不周期过期的路径；以浸泡测试验证 | 若共享需验证；失败则退回 Testing 每周授权 |
 | D5 | 不做 IMAP / App Password 路径 | 凭据可写，破坏结构保证 | 可作紧急备用文档化 |
 | D6 | LinkedIn 零网络代码：通知邮件 + 官方导出 ZIP | 协议与判例风险 | 永不自动化 |
@@ -364,11 +366,17 @@ Phase 1「收件箱到看板」。第一步是 Google Cloud 项目（Gmail + Cal
 | D19 | 先私有自用，稳定后再公开；许可证届时决定；git 提交身份已改为 GitHub noreply 地址（2026-09-17，仓库级 `git config`，历史提交已改写） | 用户决定 | 公开前复核 Phase 7 清单 |
 | D20 | 多邮箱为核心能力，由用户登录添加，数量不限；Phase 1 即支持 | 用户要求 | 无 |
 | D21 | 阶段顺序按推荐执行，但阶段是检查点而非停顿，开发连续推进 | 用户希望一口气做完 | 无 |
-| D22 | UI 沿用 MITA Finance 设计系统（token、字体、纸感卡片、侧栏、FAB 聊天面板），信息架构与页面重做；UI 三语；设计由 Claude Design 按 `docs/design/claude-design-prompt.md` 产出 | 用户要求与 MITA Finance 风格一致；复用已验证的设计语言省下整套视觉探索 | 可换 token 但保持同一套语法 |
+| D22 | UI 沿用 MITA Finance 设计系统（token、字体、纸感卡片、侧栏），信息架构与页面重做；对话为全页（设计 B 取消了 FAB 浮层）；UI 三语；设计由 Claude Design 按 `docs/design/claude-design-prompt.md` 与 `claude-design-prompt-batch2.md` 产出，落 `docs/design/v1/`，前端直接以此为依据（不再蒸馏 `DESIGN.md`） | 用户要求与 MITA Finance 风格一致；复用已验证的设计语言省下整套视觉探索 | 可换 token 但保持同一套语法 |
 | D4 附录 | Gmail 走 google-api-python-client + google-auth + google-auth-oauthlib + google-auth-httplib2 + httplib2（带约 8 个间接依赖），静态 discovery 零联网；`client_secret.json` 放 `<data_dir>/secrets/`，顶层键必须为 `installed`；`OAUTHLIB_RELAX_TOKEN_SCOPE` 只在 `auth google` 命令作用域内设置，随后用 `granted_scopes == ALLOWED_SCOPES` 自行断言；只读传输白名单主机为 `gmail.googleapis.com` 与 `oauth2.googleapis.com`（tokeninfo GET、令牌刷新 POST 为唯一 POST 例外） | 官方 SDK 便于测试（HttpMock）与后续 Calendar 复用；薄 httpx 客户端省依赖但要自维护 discovery | 若上游 google-auth-httplib2 移除，`ReadOnlyHttp` 只依赖 `__init__` / `request` 两接口，可在 40 行内改为自写包装 |
 | D23 | Phase 1 在 `pending_actions`（Phase 2）到位前，允许自动新建 `application` 行，条件：分类置信度 ≥ 0.7、公司唯一解析、来源为已核实规则或 LLM；行标 `origin='auto'` 并写审计。歧义或低置信一律进待复核、不建行 | 否则 Phase 1 退出标准「看板列出每一个流程」无法成立；Phase 2 起新建改走提议 / 确认 | Phase 2 收回 |
 | D24 | LLM 统一层用 pydantic-ai-slim（anthropic + openai 扩展），结构化输出优先 NativeOutput（模型支持 JSON schema 输出时），否则 ToolOutput；MCP 用官方 `mcp` 2.x（`mcp.server.mcpserver.MCPServer`，`ToolAnnotations` snake_case 字段）。新增守卫断言放新测试文件，不改 `tests/test_readonly_guard.py` | 调研核实的当前 API；守卫文件按 CLAUDE.md 需用户同意才改 | 用户可要求并入守卫文件 |
 | D25 | Gmail 回填默认跳过 Gmail 分类 `promotions,social`（`JOBPILOT_GMAIL_SKIP_CATEGORIES` 可改）；`jobpilot senders` 显示被跳过类别计数，供用户决定是否只跳过 `social` | 日本就活平台中继邮件常被归入 Promotions，需实测后再定 | 改配置即可 |
+| D26 | 开发顺序改为 **基础网页看板（手动录入）→ 信息获取（Gmail → LinkedIn 导出 → Calendar）→ 对话（只读问答 → 提议 / 确认）→ 岗位搜索 → 记忆 → 加固 → 发布与部署**；每步一个 git 分支（`step1-board` …）。取代 D3 与 D21 的原顺序，ROADMAP 已重写 | 用户 2026-09-18 决定：先有每天能打开、能手动记录的看板，再让数据自动流入 | 无 |
+| D27 | 托管部署（Docker、GCP 或其他云、登录自启）全部放到最后一步；此前只在本机 `jobpilot serve` 运行 | 用户要求功能成型后再部署 | 无 |
+| D28 | UI 默认语言跟随浏览器语言（zh / ja 命中即用，否则 en），可手动切换并记住 | 用户决定；面向他人使用的自然默认 | 改一行配置 |
+| D29 | 用户本人在网页 / CLI 上的写操作直接写库并写审计，前端确认卡片只是二次确认；`pending_actions` 提议表只服务 AI 路径，在第 3b 步引入 | 操作者是用户本人，不违反约束 2；第一步少一张表一层 API | 3b 时不迁移手动路径 |
+| D30 | 新增依赖：后端 fastapi、uvicorn[standard]，dev httpx（TestClient）；前端 React 19 / Vite 7 / Tailwind v4 / TanStack Query 5 / React Router 7 / lucide-react（与 MITA Finance 一致） | 第一步需要 Web 服务与前端；与姊妹项目同栈省学习成本 | 无 |
+| D31 | **不做语音**：删除按住说话、语音操作清单、转写方案；9.2 中浏览器 / 混说识别两问题作废 | 用户 2026-09-18 决定 | 用户可重新提出 |
 
 ---
 
@@ -385,17 +393,18 @@ Phase 1「收件箱到看板」。第一步是 Google Cloud 项目（Gmail + Cal
 | 项目名 | Mita JobPilot | D18 |
 | 是否公开 | 先私有自用，没问题后再公开 | D19 |
 | git 提交身份 | 一起做：改用 GitHub noreply 地址（`<id>+<用户名>@users.noreply.github.com`，在公开提交里隐藏真实邮箱） | D19；已在仓库级 `git config` 设置并改写历史提交 |
-| 只读 Web 看板与聊天框时机 | 按推荐（看板 Phase 2，聊天框 Phase 5） | D3 保持 |
+| 只读 Web 看板与聊天框时机 | ~~按推荐（看板 Phase 2，聊天框 Phase 5）~~ 2026-09-18 改为：看板第一步（手动录入），对话第三步 | D26 |
+| UI 默认语言 | 跟随浏览器，回退 en | D28 |
+| 语音 | 不做 | D31 |
+| 部署时机 | 功能成型后最后做 | D27 |
+| 第一步写入方式 | 用户操作直接写库 + 审计；提议表留给 AI 路径 | D29 |
 
 ### 9.2 仍待回答
 
-1. **浏览器**：Chrome 还是 Edge？Chrome 云端识别支持 zh / ja / en；Edge 本地识别不含 zh / ja 且有静默失败报告。
-2. **语音习惯**：会在一句话里混说中日英（如「把 Acme 的状态改成面接中」）吗？会则 Web Speech 单语言模式不够，需 OpenAI 转写或 Deepgram 多语模式。
-3. **GPU**：本机有 NVIDIA GPU 吗？决定本地 whisper / embedding 是否可行。
-4. **Workday `cxs` POST 搜索**（无服务端状态）算不算「写」？决定能否覆盖大量传统企业岗位。
-5. **数据外发接受度**：脱敏后的邮件片段、岗位文本发给 Anthropic / OpenAI 可接受吗？账号的数据保留 / ZDR 设置如何？不接受则抽取需走本地模型。
-6. **UI 默认语言**：三语并存已定，默认语言 zh / ja / en 哪个？设计 prompt 暂按 zh。
-7. **非 Google 邮箱**：若某个要读的邮箱（如大学邮箱）不是 Google 账号，需要另一条 IMAP 只读路径，与 D5 冲突，届时讨论。
+1. **GPU**：本机有 NVIDIA GPU 吗？决定本地 embedding 是否可行（语音已取消，见 D31）。
+2. **Workday `cxs` POST 搜索**（无服务端状态）算不算「写」？决定能否覆盖大量传统企业岗位。
+3. **数据外发接受度**：脱敏后的邮件片段、岗位文本发给 Anthropic / OpenAI 可接受吗？账号的数据保留 / ZDR 设置如何？不接受则 Gmail 分类只走规则 + 待复核，抽取需走本地模型。
+4. **非 Google 邮箱**：若某个要读的邮箱（如大学邮箱）不是 Google 账号，需要另一条 IMAP 只读路径，与 D5 冲突，届时讨论。
 
 ---
 

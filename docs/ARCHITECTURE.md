@@ -2,9 +2,11 @@
 
 | 项目 | 内容 |
 |---|---|
-| 状态 | 草案 v0.3（2026-09-17） |
+| 状态 | v0.4（2026-09-18） |
 | 前置 | [REQUIREMENTS.md](REQUIREMENTS.md) 需求与硬约束 |
-| 后续 | [ROADMAP.md](ROADMAP.md) 分阶段落地 |
+| 后续 | [ROADMAP.md](ROADMAP.md) 分步落地 |
+
+> **阶段编号说明**：本文写于原 Phase 0 到 7 的排期下。2026-09-18 决策 D26 把顺序重排为「步 1 网页看板 → 2a Gmail → 2b LinkedIn 导出 → 2c Calendar → 3a 只读对话 → 3b 提议确认 → 4 岗位搜索 → 5 记忆 → 6 加固 → 7 发布与部署」。下文出现的「Phase N」按此对照：Phase 1 ≈ 2a，Phase 2 ≈ 2b + 3b（Web 看板已提前到步 1），Phase 3 ≈ 2c + 5，Phase 4 = 4，Phase 5 ≈ 3a（语音部分已取消，D31），Phase 6 = 6，Phase 7 = 7。迁移编号与表的归属不变。
 
 本文描述推荐的系统架构。它综合了三个独立架构提案（MVP 优先 / 数据模型优先 / 集成风险优先）与三位评审的意见：以 MVP 优先的分期为骨架，吸收数据模型优先提案的数据纪律（优先级矩阵、公司别名、规则统计、画像快照、岗位目击台账），以及风险优先提案的运维安全（信息源状态、出站日志、令牌浸泡测试、密钥槽位白名单）。所有库版本与模型 ID 在实现时以官方页面为准。
 
@@ -12,7 +14,7 @@
 
 ## 1. 架构原则
 
-1. **一个数据库，多个视图**：CLI、MCP 工具、Web UI、语音全部读写同一个 SQLite 文件，通过同一层服务函数，没有第二套逻辑。
+1. **一个数据库，多个视图**：CLI、MCP 工具、Web UI、应用内对话全部读写同一个 SQLite 文件，通过同一层服务函数（`services/`），没有第二套逻辑。
 2. **信息源是插件**：每个外部来源实现同一个只读 `Source` 接口（`fetch_*` / `list_*` / `get_*` / `import_*`），失败时降级为「不可用」状态而不是让整个应用挂掉。
 3. **事实、判断、状态、日程分表**：岗位原始事实（来源可核验）、LLM 或用户的判断（匹配度、备注）、应聘状态、面试日程互不污染。
 4. **每次写入带出处**：`source`（来自哪个信息源）+ `source_ref` + `confidence` + 时间戳，以及产生方式：分类表用 `method ('rule','llm')`，审计表用 `actor ('user','llm','system')`，事件表用 `source` 区分 manual / chat / import。自动变更与人工变更共用一张审计表。
@@ -87,7 +89,6 @@ flowchart LR
 | 调度 | Phase 1 简单循环 `jobpilot watch`；Phase 2 起 Windows 任务计划（schtasks ONLOGON）登录自启；Phase 5 起 APScheduler 3.11 随 FastAPI lifespan 运行（4.x 仍是预发布） | 单进程足够，无需队列 | WinSW 服务（需登录前启动时）；systemd timer（Linux） |
 | Web 后端 | FastAPI + uvicorn（默认绑定 127.0.0.1），sse-starlette 流式 | 与 pydantic 同生态 | — |
 | Web 前端 | React 19 + TypeScript + Vite + Tailwind（`frontend/`），design tokens 来自 `docs/DESIGN.md` | 完整控制设计系统；Node 22 已在 | NiceGUI 挂在同一 FastAPI 上（工具链拖慢时的备选） |
-| 语音 | 浏览器 Web Speech API 按住说话（ja-JP / zh-CN / en-US 切换）；可选 OpenAI 转写后备；本地 faster-whisper 仅离线用 | 免费、零后端代码 | Deepgram 多语模式 |
 | 密钥 | keyring（Windows Credential Manager）存短 key；Google 令牌从 Phase 0 起用 DPAPI 加密文件（Credential Manager 有长度上限）；Linux 用 Fernet 加密文件 | 平台原生保护 | — |
 | 质量 | pytest、ruff、pyright、pre-commit（含 `scripts/check_pii.py`） | 常规 | — |
 
@@ -195,7 +196,7 @@ flowchart LR
 
 正文里的 URL 主机同样是强信号：`*.snar.jp`、`*.i-web.jpn.com`、`mypage.30NN.i-webs.jp`、`job.axol.jp`、`www.e2r.jp/ja/*`、`apply.workable.com/j/*`、`herp.careers/v1/*`、`open.talentio.com/r/1/c/*`、`*.myworkdayjobs.com`、`*.e-exams.jp`。
 
-「マイページをご確認ください」类存根 → `portal_check_required` 事件 + 门户链接 + 一键 / 语音回填。「今後のご連絡は LINE にて」→ 标记该申请渠道为 LINE，提示手动记录。
+「マイページをご確認ください」类存根 → `portal_check_required` 事件 + 门户链接 + 一键回填。「今後のご連絡は LINE にて」→ 标记该申请渠道为 LINE，提示手动记录。
 
 ### 6.5 岗位来源
 
@@ -244,7 +245,7 @@ flowchart LR
 
 1. **结构化历史**（Phase 1 起）：追踪域全部表。无 LLM 参与主键。
 2. **类型化画像**（Phase 3）：`profile_facts` + `company_intel`。来源：聊天（Phase 3 由宿主模型调用 `propose_memory_fact`，Phase 5 起每轮自动抽取）、LinkedIn Job Seeker Preferences、ChatGPT / Claude 对话导出（`chat_import`）、Phase 6 的结果推断。候选先进收件箱；默认人工确认，唯一例外见 D15（第一人称明确陈述、置信度 ≥ 0.85、非敏感类别自动生效并标「可撤销」）。取代在一个事务里完成：旧行 `valid_to=now, status=superseded, superseded_by=new`。活跃事实渲染成稳定 Markdown「核心记忆」块，作为 `get_profile()` 工具与 `jobpilot://profile` MCP 资源，并放在提示缓存断点后。引导问卷按 `campaign.kind` 分组：新卒组问毕业时间、目标岗位、地点、年薪区间、行业、签证、远程、公司规模、硬性排除、语言；中途组另问现职、现年薪、通知期、跳槽动机。
-3. **情节记忆**（Phase 5）：`chat_turns` 每 40 轮或会话结束生成 `episode_summaries`，Phase 6 加每周滚动汇总与压缩；语音轮次 `asr_confidence < 0.8` 时所有抽取事实强制确认。
+3. **情节记忆**（Phase 5）：`chat_turns` 每 40 轮或会话结束生成 `episode_summaries`，Phase 6 加每周滚动汇总与压缩。
 4. **检索**（Phase 3 FTS，Phase 6 向量）：`memory_fts` + `email_fts` 双表；后期 `chunks` + vec0 用 RRF 融合。
 
 **学习循环**：`profile_facts` 的 `hard_require / hard_exclude` → SQL WHERE；`prefer / avoid` → `preference_weights.w_stated`；每岗位算 `job_features`；`job_scores` 存透明软分 + LLM 重排（盖 `profile_snapshot_hash`）；每次展示 / 收藏 / 驳回 / 申请写 `job_interactions`；公司侧结果写 `application_event` 与 `fit_signals`。Phase 6 夜间任务把交互变成 `w_learned`（申请 +1、收藏 +0.5、驳回 −1、忽略 ×3 −0.25；0.7 / 0.3 混合；90 天半衰期），并把「你从不申请 5000 人以上公司」这类推断作为候选事实送进收件箱。**冷启动守卫**：某特征样本数 < 20 时 `w_learned` 不生效；权重页显示陈述值、学习值、样本数、最后更新。
@@ -253,13 +254,12 @@ flowchart LR
 
 ---
 
-## 9. LLM、对话与语音层
+## 9. LLM 与对话层
 
-- **Phase 1 到 4：MCP 宿主即对话入口**（Web 看板从 Phase 2 起只读，不含聊天）。`jobpilot-mcp`（stdio）暴露只读工具：Phase 1 `list_pipeline(status?, limit≤50)`、`get_application(id)`、`search_emails(query, limit≤20)`、`get_sync_status()`；Phase 2 加 `propose_status_update / propose_log_application / propose_note / propose_exclude / confirm_action / cancel_action / list_pending_actions`；Phase 3 加 `list_interviews / get_next_interview / get_profile / search_memory / propose_memory_fact`；Phase 4 加 `search_jobs / get_job / evaluate_posting / propose_save_job / propose_dismiss_job / create_research_request / import_research_result`。所有工具返回值经 `pii_aliases` 脱敏。工具描述里嵌入落地规则（只答工具结果、引用 `[app:id]`、查不到就说没有），宿主侧再放一份项目指令（Claude Desktop 项目、Claude Code `CLAUDE.md`、Codex `AGENTS.md`）。`tools/list` 顺序确定，利于提示缓存。
-- **Phase 5：自有对话面板**。pydantic-ai `Agent`，`FunctionToolset` 复用同一注册表，写操作 `requires_approval=True` → `DeferredToolRequests` → 确认卡片 → `DeferredToolResults`；`output_type=[str, DeferredToolRequests]`；`UsageLimits(tool_calls_limit=8)`；Anthropic 开启指令与工具定义缓存；SSE 流式并每 15 秒心跳。
-- **语音**：按住说话，`SpeechRecognition` 语言切换 ja-JP / zh-CN / en-US；转写填入聊天框，带 `modality='voice'`；`ui_command(navigate | filter | open)` 由前端执行；确认关键词 `re.fullmatch(confirm|yes|はい|確認|确认|是)` 由程序匹配。可选 `/api/voice/transcribe` 走 OpenAI 转写（`keywords` 用库里的公司名播种）。过渡期用 Win+H 听写进宿主。
-- **语音可操作动作清单**（每条都有无 LLM 的确定性意图后备；后三项 Phase 4 起）：显示看板 / 按状态筛选 / 打开某公司申请 / 下一个面试 / 本周截止 / 改状态 / 记录申请 / 记录备注 / 门户回填 / 评估这条岗位 / 收藏或驳回岗位。
-- **落地回归套件**：一组固定问题与语音指令 → 期望工具调用与期望「无记录」回答，两家提供商各跑一遍，每次改提示词或换模型后运行。
+- **步 3a：MCP 宿主与应用内对话页同时作为只读对话入口**（网页看板从步 1 起存在，手动录入；对话页在 3a 加入）。`jobpilot-mcp`（stdio）暴露只读工具：Phase 1 `list_pipeline(status?, limit≤50)`、`get_application(id)`、`search_emails(query, limit≤20)`、`get_sync_status()`；Phase 2 加 `propose_status_update / propose_log_application / propose_note / propose_exclude / confirm_action / cancel_action / list_pending_actions`；Phase 3 加 `list_interviews / get_next_interview / get_profile / search_memory / propose_memory_fact`；Phase 4 加 `search_jobs / get_job / evaluate_posting / propose_save_job / propose_dismiss_job / create_research_request / import_research_result`。所有工具返回值经 `pii_aliases` 脱敏。工具描述里嵌入落地规则（只答工具结果、引用 `[app:id]`、查不到就说没有），宿主侧再放一份项目指令（Claude Desktop 项目、Claude Code `CLAUDE.md`、Codex `AGENTS.md`）。`tools/list` 顺序确定，利于提示缓存。
+- **步 3a / 3b：应用内对话页（设计 B 第 08 页，全页，无 FAB）**。pydantic-ai `Agent`，`FunctionToolset` 复用同一注册表；3a 只挂只读工具；3b 起写操作 `requires_approval=True` → `DeferredToolRequests` → 确认卡片 → `DeferredToolResults`；`output_type=[str, DeferredToolRequests]`；`UsageLimits(tool_calls_limit=8)`；Anthropic 开启指令与工具定义缓存；SSE 流式并每 15 秒心跳。`ui_command(navigate | filter | open)` 由前端执行；确认关键词 `re.fullmatch(confirm|yes|はい|確認|确认|是)` 由程序匹配。
+- **语言可操作动作清单**（每条都有无 LLM 的确定性意图后备；后三项步 4 起）：显示看板 / 按状态筛选 / 打开某公司申请 / 下一个面试 / 本周截止 / 改状态 / 记录申请 / 记录备注 / 门户回填 / 评估这条岗位 / 收藏或驳回岗位。不做语音（D31）。
+- **落地回归套件**：一组固定问题与指令 → 期望工具调用与期望「无记录」回答，两家提供商各跑一遍，每次改提示词或换模型后运行。
 - **模型选择**：分类与批量抽取默认便宜档，聊天默认高档，GPT 侧对应配置；具体 ID 以两家官方 models 页为准，写在 `.env` / 设置里。
 
 ---
@@ -307,33 +307,39 @@ src/jobpilot/regions/
 
 ---
 
-## 13. 仓库结构（目标）
+## 13. 仓库结构（目标；标 ✓ 的已存在，2026-09-18）
 
 ```
 Mita JobPilot/
-  pyproject.toml            # uv_build；[project.scripts] jobpilot / jobpilot-mcp；dev 组 pytest ruff pyright
-  uv.lock
-  env.example               # 非机密配置示例（无前导点，避开 .env* 保护规则）
-  Dockerfile  compose.yaml
-  CLAUDE.md                 # 面向 AI 协作者的约束与指引
-  scripts/check_pii.py      # 提交前身份信息检查
-  docs/                     # REQUIREMENTS / ARCHITECTURE / ROADMAP / DESIGN（Phase 2）+ research/ + ref/
+  pyproject.toml ✓          # uv_build；[project.scripts] jobpilot / jobpilot-mcp；dev 组 pytest ruff pyright httpx
+  uv.lock ✓
+  env.example ✓             # 非机密配置示例（无前导点，避开 .env* 保护规则）
+  Dockerfile  compose.yaml  # 步 7
+  CLAUDE.md ✓               # 面向 AI 协作者的约束与指引
+  scripts/check_pii.py ✓    # 提交前身份信息检查
+  docs/ ✓                   # REQUIREMENTS / ARCHITECTURE / ROADMAP + design/v1/（Claude Design 交付物）+ research/ + ref/
   src/jobpilot/
-    settings.py  secrets.py  cli.py  mcp_server.py
-    domain.py               # CampaignKind / Track / ApplicationStatus 枚举，Campaign 行模型
-    store/{db.py, repo.py, migrations/0001_init.sql ...}
-    connectors/{gmail/, gcal/, linkedin_archive/, boards/, websearch/}   # 只读包
-    classify/{rules.py, phrases.py, llm.py, schemas.py, prompts/}
-    services/{pipeline.py, resolve.py, status.py, reminders.py}
-    actions.py              # propose / confirm / audit
+    settings.py ✓  secrets.py ✓  cli.py ✓  mcp_server.py（占位）  textutil.py ✓
+    domain.py ✓             # 全部枚举、EVENT_STATUS / STATUS_RANK 推导表、行模型
+    store/{db.py ✓, repo.py ✓, search.py ✓, migrations/0001_init.sql ✓ ...}
+    connectors/{gmail/ ✓（readonly_http, auth, parse, sync）, gcal/, linkedin_archive/, boards/, websearch/}   # 只读包
+    classify/{rules.py, phrases.py, pii.py, truncate.py, llm.py, schemas.py, prompts/}   # 步 2a
+    services/{status.py ✓, manual.py ✓, pipeline.py, resolve.py, gmail_sync.py, reminders.py}
+    actions.py              # propose / confirm / audit（步 3b）
     memory/{facts.py, extract.py, render.py, fts.py}
     search/{dedupe.py, scoring.py, learn.py, research.py}
-    regions/{base.py, registry.py, global_en/, japan/}   # 每个包 data/pack.yaml（default_lang, default_tz）+ 6 个规则数据文件
+    regions/{base.py ✓, registry.py ✓, global_en/ ✓, japan/ ✓}   # 每个包 data/pack.yaml + 规则数据文件（步 2a 填内容）
     tools/{registry.py, readonly.py, local_mutations.py}
-    web/{app.py, api/}
-  frontend/                 # React + TS + Vite + Tailwind（Phase 2 起）
-  tests/                    # 是一个包（有 __init__.py），以便 `from tests.conftest import ...`
-    conftest.py  test_smoke.py  test_settings.py  test_db.py  test_secrets.py  test_regions.py
-    test_readonly_guard.py  test_env_example.py  （Phase 1 起）test_rules.py  test_pipeline.py  fixtures/emails/*.json（匿名化）
-运行时数据（仓库外）：JOBPILOT_DATA_DIR/{jobpilot.db, secrets/, imports/, backups/, rules/user_senders.yaml, logs/}
+    web/{app.py ✓, api.py ✓, schemas.py ✓}   # FastAPI 工厂、/api 路由、接口模型；托管 frontend/dist
+  frontend/ ✓               # React 19 + TS + Vite 7 + Tailwind v4 + TanStack Query + React Router + lucide-react
+    src/{main.tsx, router.tsx, index.css, tokens.css（拷自 docs/design/v1）}
+    src/lib/{api.ts, types.ts, status.ts, format.ts, theme.ts, i18n.tsx, campaign.tsx, queryClient.ts}
+    src/i18n/{en,zh,ja}.ts  src/hooks/useBoard.ts  src/layout/{AppShell,SideNav,TopBar}.tsx
+    src/components/ui/{PaperCard,Button,Field,Alert,Chips,EmptyState,ConfirmCard,PageHeader}.tsx
+    src/pages/{DashboardPage,PipelinePage,ApplicationPage,SettingsPage,SoonPage}.tsx
+  tests/ ✓                  # 是一个包（有 __init__.py），以便 `from tests.conftest import ...`
+    conftest.py  test_smoke.py  test_settings.py  test_db.py  test_fts.py  test_secrets.py  test_regions.py
+    test_readonly_guard.py  test_readonly_http.py  test_scopes.py  test_gmail_*.py  test_sync_readonly_path.py
+    test_env_example.py  test_status.py  test_web.py  fakes/gmail.py
+运行时数据（仓库外）：JOBPILOT_DATA_DIR/{jobpilot.db, secrets/client_secret.json, imports/, backups/, rules/user_senders.yaml, logs/}
 ```
