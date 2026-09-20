@@ -9,14 +9,22 @@ interface Props {
   after: ReactNode;
   hint?: string;
   busy?: boolean;
+  eyebrow?: string;
+  badge?: ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
 }
 
-export function ConfirmCard({ title, before, after, hint, busy, onConfirm, onCancel }: Props) {
+export function ConfirmCard({ title, before, after, hint, busy, eyebrow, badge, onConfirm, onCancel }: Props) {
   const { t } = useT();
   return (
     <div className="rounded-xl border border-dashed border-cream-400 bg-cream-50 p-4">
+      {eyebrow || badge ? (
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">{eyebrow}</span>
+          {badge}
+        </div>
+      ) : null}
       <div className="text-sm font-semibold text-ink-900">{title}</div>
       <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
         <div>

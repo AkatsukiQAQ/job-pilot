@@ -55,6 +55,21 @@ export function daysAgo(iso: string): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
 }
 
+/** Calendar-day distance (in `tz`) between `iso` and `nowIso`; `null` when past or beyond this week. */
+export function relativeDay(iso: string, tz: string, nowIso: string): 'today' | 'tomorrow' | 'later_this_week' | null {
+  const a = parts(iso, tz);
+  const b = parts(nowIso, tz);
+  const due = Date.UTC(Number(a.year), Number(a.month) - 1, Number(a.day));
+  const now = Date.UTC(Number(b.year), Number(b.month) - 1, Number(b.day));
+  const diffDays = Math.round((due - now) / 86_400_000);
+  if (diffDays === 0) return 'today';
+  if (diffDays === 1) return 'tomorrow';
+  // Week runs Mon–Sun in the display timezone; weekdayIndex 0 is Sunday.
+  const daysToWeekEnd = b.weekdayIndex === 0 ? 0 : 7 - b.weekdayIndex;
+  if (diffDays >= 2 && diffDays <= daysToWeekEnd) return 'later_this_week';
+  return null;
+}
+
 /** `datetime-local` input value for "now" (local browser time, minute precision). */
 export function nowLocalInput(): string {
   const d = new Date();

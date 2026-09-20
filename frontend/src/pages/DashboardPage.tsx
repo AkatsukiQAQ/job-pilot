@@ -1,13 +1,16 @@
+import { CalendarClock, ListTodo } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { DistributionBar } from '@/components/DistributionBar';
 import { Alert } from '@/components/ui/Alert';
+import { Pill } from '@/components/ui/Chips';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PaperCard } from '@/components/ui/PaperCard';
 import { useDashboard, useMeta } from '@/hooks/useBoard';
 import { useCampaign } from '@/lib/campaign';
-import { fmtDate, fmtDateTime } from '@/lib/format';
+import { fmtDate, fmtDateTime, relativeDay } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { STATUS_GROUPS, type StatusGroup } from '@/lib/status';
-import type { Dashboard, Kind } from '@/lib/types';
+import type { Dashboard, Kind, UpcomingItem } from '@/lib/types';
 
 const GREETING_KEY: Partial<Record<Kind, 'dashboard.greeting.intern' | 'dashboard.greeting.newgrad' | 'dashboard.greeting.midcareer'>> = {
   intern: 'dashboard.greeting.intern',
@@ -16,6 +19,10 @@ const GREETING_KEY: Partial<Record<Kind, 'dashboard.greeting.intern' | 'dashboar
 };
 
 const INTERVIEW_EVENTS = new Set(['interview', 'final_interview', 'casual_interview']);
+const UPCOMING_ICON: Record<UpcomingItem['kind'], typeof CalendarClock> = {
+  deadline: CalendarClock,
+  next_action: ListTodo,
+};
 const GROUP_COLOR: Record<StatusGroup, string> = {
   not_started: 'var(--color-status-considering-bg)',
   in_progress: 'var(--color-status-interviewing-bg)',
@@ -68,6 +75,10 @@ export function DashboardPage() {
     return INTERVIEW_EVENTS.has(e.event_type) && ts >= now && ts <= now + 7 * 86_400_000;
   }).length;
   const deadlines = d.upcoming.filter((u) => u.kind === 'deadline').length;
+  const nowIso = new Date().toISOString();
+  const upcomingGroups = (['deadline', 'next_action'] as const)
+    .map((kind) => ({ kind, items: d.upcoming.filter((u) => u.kind === kind) }))
+    .filter((g) => g.items.length > 0);
 
   return (
     <div className="space-y-5">
@@ -77,14 +88,15 @@ export function DashboardPage() {
         </div>
         <h1 className="hand-body mt-1 text-2xl text-ink-900">
           {t((current ? GREETING_KEY[current.kind] : undefined) ?? 'dashboard.greeting')}
+          <span className="ml-1 align-[0.6em] text-[0.5em]" style={{ color: 'var(--color-accent-amber)' }}>✦</span>
         </h1>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label={t('dashboard.kpi.in_progress')} value={groupCount(d, 'in_progress')} hint={t('dashboard.kpi.hint')} />
-        <KpiCard label={t('dashboard.kpi.deadlines')} value={deadlines} />
+        <KpiCard label={t('dashboard.kpi.deadlines')} value={deadlines} hint={t('dashboard.kpi.deadlines_hint')} />
         <KpiCard label={t('dashboard.kpi.interviews')} value={interviews} />
-        <KpiCard label={t('dashboard.kpi.review')} value={0} highlight />
+        <KpiCard label={t('dashboard.kpi.review')} value={0} hint={t('dashboard.kpi.review_hint')} highlight />
       </div>
 
       {total === 0 ? (
@@ -101,19 +113,39 @@ export function DashboardPage() {
               {d.upcoming.length === 0 ? (
                 <p className="text-sm text-ink-500">{t('dashboard.upcoming.empty')}</p>
               ) : (
-                <ul className="divide-y divide-cream-200 text-sm">
-                  {d.upcoming.map((u) => (
-                    <li key={`${u.application_id}-${u.kind}`} className="flex items-center gap-3 py-2">
-                      <span className="w-20 text-xs text-ink-500">{t(`dashboard.upcoming.${u.kind}`)}</span>
-                      <Link className="min-w-0 flex-1 truncate text-ink-900 hover:underline" to={`/pipeline/${u.application_id}`}>
-                        {u.company}
-                        {u.role ? <span className="text-ink-500"> · {u.role}</span> : null}
-                        {u.label ? <span className="text-ink-500"> · {u.label}</span> : null}
-                      </Link>
-                      <span className="font-mono text-xs text-ink-700">{fmtDateTime(u.due, tz, lang)}</span>
-                    </li>
-                  ))}
-                </ul>
+                <div className="space-y-4">
+                  {upcomingGroups.map((g) => {
+                    const Icon = UPCOMING_ICON[g.kind];
+                    return (
+                      <div key={g.kind}>
+                        <div className="flex items-center gap-2 border-b border-cream-200 pb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
+                          <Icon size={14} />
+                          <span>{t(`dashboard.upcoming.${g.kind}`)}</span>
+                        </div>
+                        <ul className="divide-y divide-cream-200 text-sm">
+                          {g.items.map((u) => {
+                            const rel = relativeDay(u.due, tz, nowIso);
+                            return (
+                              <li key={`${u.application_id}-${u.kind}`} className="flex items-center justify-between gap-3 py-2">
+                                <Link className="min-w-0 flex-1 hover:underline" to={`/pipeline/${u.application_id}`}>
+                                  <div className="truncate">
+                                    <span className="font-medium text-ink-900">{u.company}</span>
+                                    {u.role ? <span className="text-ink-500"> · {u.role}</span> : null}
+                                  </div>
+                                  {u.label ? <div className="truncate text-xs text-ink-500">{u.label}</div> : null}
+                                </Link>
+                                <div className="flex flex-shrink-0 flex-col items-end gap-1">
+                                  <span className="font-mono text-xs text-ink-700">{fmtDateTime(u.due, tz, lang)}</span>
+                                  {rel ? <Pill>{t(`time.${rel}`)}</Pill> : null}
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </PaperCard>
 
@@ -141,18 +173,20 @@ export function DashboardPage() {
           <div className="space-y-4 lg:col-span-4">
             <PaperCard>
               <SectionTitle>{t('dashboard.distribution')}</SectionTitle>
-              <div className="flex h-3 overflow-hidden rounded-full bg-cream-200">
-                {(Object.keys(STATUS_GROUPS) as StatusGroup[]).map((g) => {
-                  const n = groupCount(d, g);
-                  return n ? (
-                    <div key={g} style={{ width: `${(n / total) * 100}%`, background: GROUP_COLOR[g] }} title={`${t(`group.${g}`)} ${n}`} />
-                  ) : null;
-                })}
-              </div>
+              <DistributionBar
+                ariaLabel={t('dashboard.distribution')}
+                total={total}
+                segments={(Object.keys(STATUS_GROUPS) as StatusGroup[])
+                  .map((g) => ({ key: g, count: groupCount(d, g), color: GROUP_COLOR[g] }))
+                  .filter((s) => s.count > 0)}
+              />
               <ul className="mt-3 space-y-1 text-xs text-ink-700">
                 {(Object.keys(STATUS_GROUPS) as StatusGroup[]).map((g) => (
                   <li key={g} className="flex items-center gap-2">
-                    <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: GROUP_COLOR[g] }} />
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-sm border border-ink-900"
+                      style={{ background: GROUP_COLOR[g], transform: 'rotate(-5deg)' }}
+                    />
                     <span className="flex-1">{t(`group.${g}`)}</span>
                     <span className="font-mono">{groupCount(d, g)}</span>
                   </li>

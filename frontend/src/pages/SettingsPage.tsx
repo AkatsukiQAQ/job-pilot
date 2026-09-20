@@ -122,10 +122,13 @@ export function SettingsPage() {
           title={t('settings.sources.title')}
           hint={t('settings.sources.body')}
           action={
-            <div className="flex gap-2 opacity-70">
-              <SourceBadge source="gmail" />
-              <SourceBadge source="gcal" />
-              <SourceBadge source="linkedin_export" />
+            <div className="flex items-center gap-2">
+              <div className="flex gap-2 opacity-70">
+                <SourceBadge source="gmail" />
+                <SourceBadge source="gcal" />
+                <SourceBadge source="linkedin_export" />
+              </div>
+              <span className="pending inline-block px-2 py-0.5 text-[11px] font-medium">{t('common.coming_soon')}</span>
             </div>
           }
         />

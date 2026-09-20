@@ -1,9 +1,9 @@
-import { Plus } from 'lucide-react';
+import { ArrowUpRight, Plus } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
-import { SourceBadge, StatusChip } from '@/components/ui/Chips';
+import { Pill, SourceBadge, StatusChip } from '@/components/ui/Chips';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Field, inputClass } from '@/components/ui/Field';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -12,10 +12,13 @@ import { useApplications, useCreateApplication, useMeta } from '@/hooks/useBoard
 import { useCampaign } from '@/lib/campaign';
 import { daysAgo, fmtDateTime } from '@/lib/format';
 import { useT } from '@/lib/i18n';
-import { STATUS_ORDER } from '@/lib/status';
+import { groupOf, STATUS_GROUPS, STATUS_ORDER, type StatusGroup } from '@/lib/status';
 import type { ApplicationRow, Track } from '@/lib/types';
 
 const ALL_TRACKS = 'all';
+const ALL_GROUPS = 'all';
+const GROUP_KEYS = Object.keys(STATUS_GROUPS) as StatusGroup[];
+type GroupFilter = StatusGroup | typeof ALL_GROUPS;
 
 function AddForm({ campaignId, onDone }: { campaignId: number; onDone: () => void }) {
   const { t } = useT();
@@ -23,10 +26,18 @@ function AddForm({ campaignId, onDone }: { campaignId: number; onDone: () => voi
   const create = useCreateApplication();
   const navigate = useNavigate();
   const [form, setForm] = useState({ company_name: '', role: '', track: 'newgrad' as Track, job_url: '', notes: '' });
-  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
+  const [companyError, setCompanyError] = useState(false);
+  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => {
+    setForm({ ...form, [k]: e.target.value });
+    if (companyError) setCompanyError(false);
+  };
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    if (!form.company_name.trim()) {
+      setCompanyError(true);
+      return;
+    }
     create.mutate(
       {
         campaign_id: campaignId,
@@ -44,7 +55,7 @@ function AddForm({ campaignId, onDone }: { campaignId: number; onDone: () => voi
     <PaperCard>
       <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
         <Field label={t('pipeline.form.company')}>
-          <input className={inputClass} required value={form.company_name} onChange={set('company_name')} />
+          <input className={inputClass} value={form.company_name} onChange={set('company_name')} />
         </Field>
         <Field label={`${t('pipeline.form.role')} (${t('common.optional')})`}>
           <input className={inputClass} value={form.role} onChange={set('role')} />
@@ -64,6 +75,12 @@ function AddForm({ campaignId, onDone }: { campaignId: number; onDone: () => voi
             <textarea className={inputClass} rows={2} value={form.notes} onChange={set('notes')} />
           </Field>
         </div>
+        <div className="flex items-center gap-2 text-xs text-ink-500 md:col-span-2">
+          <SourceBadge source="manual" /> {t('common.source_note')}
+        </div>
+        {companyError ? (
+          <div className="md:col-span-2"><Alert tone="error">{t('pipeline.form.required')}</Alert></div>
+        ) : null}
         {create.isError ? (
           <div className="md:col-span-2"><Alert tone="error">{create.error.message}</Alert></div>
         ) : null}
@@ -87,7 +104,9 @@ function Row({ row, tz }: { row: ApplicationRow; tz: string }) {
           <div className="text-[11px] italic text-ink-500">{t('pipeline.ghosted', { n: daysAgo(row.last_event_at) })}</div>
         ) : null}
       </td>
-      <td className="px-4 py-3 text-ink-700">{row.role ?? t('common.none')}</td>
+      <td className="px-4 py-3 text-ink-700">
+        {row.role ?? t('common.none')} <Pill>{t(`track.${row.track}`)}</Pill>
+      </td>
       <td className="px-4 py-3"><StatusChip status={row.status} autoStatus={row.auto_status} /></td>
       <td className="px-4 py-3 text-ink-700">
         {row.last_event_type ? (
@@ -102,6 +121,16 @@ function Row({ row, tz }: { row: ApplicationRow; tz: string }) {
         {row.next_action ? <div className="font-sans text-[11px] text-ink-500">{row.next_action}</div> : null}
       </td>
       <td className="px-4 py-3"><SourceBadge source="manual" /></td>
+      <td className="px-4 py-3">
+        <Link
+          to={`/pipeline/${row.application_id}`}
+          aria-label={t('common.open')}
+          title={t('common.open')}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-ink-500 hover:bg-cream-100"
+        >
+          <ArrowUpRight size={14} />
+        </Link>
+      </td>
     </tr>
   );
 }
@@ -114,27 +143,32 @@ export function PipelinePage() {
   const [adding, setAdding] = useState(false);
   const [track, setTrack] = useState<string>(ALL_TRACKS);
   const [keyword, setKeyword] = useState('');
+  const [activeGroup, setActiveGroup] = useState<GroupFilter>(ALL_GROUPS);
   const tz = meta.data?.tz ?? 'UTC';
 
   if (loaded && !current) {
     return <EmptyState title={t('settings.campaigns.empty')} action={<Link className="text-sm underline" to="/settings">{t('nav.settings')}</Link>} />;
   }
   const rows = apps.data ?? [];
-  const cols: string[] = ['company', 'role', 'status', 'last_event', 'next', 'source'];
+  const cols: string[] = ['company', 'role', 'status', 'last_event', 'next', 'source', 'open'];
   const keywordLower = keyword.trim().toLowerCase();
   const filteredRows = rows.filter(
     (r) =>
+      (activeGroup === ALL_GROUPS || groupOf(r.status) === activeGroup) &&
       (track === ALL_TRACKS || r.track === track) &&
       (!keywordLower || `${r.company} ${r.role ?? ''}`.toLowerCase().includes(keywordLower)),
   );
-  const clearFilters = () => { setTrack(ALL_TRACKS); setKeyword(''); };
+  const clearFilters = () => { setTrack(ALL_TRACKS); setKeyword(''); setActiveGroup(ALL_GROUPS); };
+  const restStatuses = STATUS_ORDER.filter(
+    (s) => (activeGroup === ALL_GROUPS || groupOf(s) === activeGroup) && !filteredRows.some((r) => r.status === s),
+  );
 
   return (
     <div className="space-y-5">
       <PageHeader
         eyebrow={t('pipeline.eyebrow')}
         title={t('pipeline.title')}
-        hint={current?.name}
+        hint={current ? `${current.name} · ${t('common.applications_count', { n: rows.length })}` : undefined}
         actions={
           <Button onClick={() => setAdding(true)} leadingIcon={<Plus size={16} />} disabled={!current}>
             {t('pipeline.add')}
@@ -147,6 +181,27 @@ export function PipelinePage() {
         <EmptyState title={t('pipeline.empty')} />
       ) : apps.isSuccess ? (
         <>
+          <div role="tablist" className="inline-flex rounded-full border border-cream-200 bg-cream-100 p-1 text-sm">
+            {([ALL_GROUPS, ...GROUP_KEYS] as GroupFilter[]).map((g) => {
+              const count = g === ALL_GROUPS ? rows.length : rows.filter((r) => groupOf(r.status) === g).length;
+              return (
+                <button
+                  key={g}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeGroup === g}
+                  onClick={() => setActiveGroup(g)}
+                  className={[
+                    'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-medium transition-colors',
+                    activeGroup === g ? 'bg-cream-300 text-ink-900' : 'text-ink-500 hover:text-ink-700',
+                  ].join(' ')}
+                >
+                  {g === ALL_GROUPS ? t('pipeline.filter.all') : t(`group.${g}`)}
+                  <span className="font-mono text-[11px] text-ink-500">{count}</span>
+                </button>
+              );
+            })}
+          </div>
           <div className="flex flex-wrap items-end gap-3">
             <Field label={t('pipeline.filter.track')}>
               <select className={inputClass} value={track} onChange={(e) => setTrack(e.target.value)}>
@@ -177,7 +232,15 @@ export function PipelinePage() {
             <div className="overflow-hidden rounded-2xl border border-cream-200 bg-cream-100">
               <table className="w-full text-sm">
                 <thead className="bg-cream-200/60 text-left text-xs uppercase tracking-wide text-ink-500">
-                  <tr>{cols.map((c) => <th key={c} className="px-4 py-2 font-semibold">{t(`pipeline.col.${c}` as never)}</th>)}</tr>
+                  <tr>
+                    {cols.map((c) =>
+                      c === 'open' ? (
+                        <th key={c} className="px-4 py-2 font-semibold" aria-label={t('common.open')} />
+                      ) : (
+                        <th key={c} className="px-4 py-2 font-semibold">{t(`pipeline.col.${c}` as never)}</th>
+                      ),
+                    )}
+                  </tr>
                 </thead>
                 {STATUS_ORDER.map((status) => {
                   const group = filteredRows.filter((r) => r.status === status);
@@ -193,6 +256,15 @@ export function PipelinePage() {
                     </tbody>
                   );
                 })}
+                {restStatuses.length ? (
+                  <tbody>
+                    <tr>
+                      <td colSpan={cols.length} className="border-t border-cream-200 px-4 py-2 text-xs text-ink-500">
+                        {t('pipeline.empty_rest')} · {restStatuses.map((s) => t(`status.${s}`)).join(' · ')}
+                      </td>
+                    </tr>
+                  </tbody>
+                ) : null}
               </table>
             </div>
           )}
