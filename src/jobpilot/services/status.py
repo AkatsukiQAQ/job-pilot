@@ -57,6 +57,7 @@ def recompute(conn: sqlite3.Connection, application_id: int) -> Application:
             status_set_by=StatusSetBy.SYSTEM,
             last_event_at=max(dated) if dated else None,
             applied_at=min(applied) if applied else None,
+            force_dates=True,
         ),
     )
 

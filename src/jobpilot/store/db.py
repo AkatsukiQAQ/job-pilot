@@ -41,11 +41,15 @@ def to_iso(dt: datetime) -> str:
     return dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
-def connect(path: Path | str, *, readonly: bool = False) -> sqlite3.Connection:
+def connect(
+    path: Path | str, *, readonly: bool = False, check_same_thread: bool = True
+) -> sqlite3.Connection:
     """Open (and create if needed) the database with the project's PRAGMA set.
 
     ``readonly=True`` opens with ``mode=ro`` (structural read-only for the MCP process). A WAL
     database opens read-only as long as its ``-shm`` file exists or the directory is writable.
+    ``check_same_thread=False`` lets a connection created on one thread be used (and closed) on
+    another, which the web API needs (see ``jobpilot.web.api.get_conn``).
     """
     p = Path(path)
     if readonly:
@@ -57,7 +61,7 @@ def connect(path: Path | str, *, readonly: bool = False) -> sqlite3.Connection:
     if str(p) != ":memory:":
         p.parent.mkdir(parents=True, exist_ok=True)
     # autocommit=True: the driver never opens implicit transactions; transaction() is explicit.
-    conn = sqlite3.connect(p, timeout=5.0, autocommit=True)
+    conn = sqlite3.connect(p, timeout=5.0, autocommit=True, check_same_thread=check_same_thread)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")

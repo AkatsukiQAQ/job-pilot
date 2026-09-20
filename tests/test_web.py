@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
 
 from jobpilot.settings import Settings
+from jobpilot.store.db import connect
 from jobpilot.web.app import create_app
 
 
@@ -123,7 +126,8 @@ def test_update_campaign(client: TestClient) -> None:
         "midcareer",
         "2031-01-01",
     )
-    assert r.json()["is_active"] is True  # untouched
+    # b was created after a, so a is no longer active; update() doesn't touch is_active either way.
+    assert r.json()["is_active"] is False
     dup = client.patch(
         f"/api/campaigns/{a['campaign_id']}",
         json={"name": "b", "kind": "other", "region_pack": "global_en"},
@@ -146,3 +150,270 @@ def test_update_campaign(client: TestClient) -> None:
         ).status_code
         == 404
     )
+
+
+def test_creating_second_campaign_leaves_one_active(client: TestClient) -> None:
+    a = client.post(
+        "/api/campaigns", json={"name": "one", "kind": "other", "region_pack": "global_en"}
+    ).json()
+    b = client.post(
+        "/api/campaigns", json={"name": "two", "kind": "other", "region_pack": "global_en"}
+    ).json()
+    campaigns = client.get("/api/campaigns").json()
+    assert sum(1 for c in campaigns if c["is_active"]) == 1
+    assert next(c for c in campaigns if c["campaign_id"] == b["campaign_id"])["is_active"] is True
+    assert next(c for c in campaigns if c["campaign_id"] == a["campaign_id"])["is_active"] is False
+
+
+def test_patch_application(client: TestClient) -> None:
+    campaign_id = client.post(
+        "/api/campaigns", json={"name": "patch-camp", "kind": "other", "region_pack": "global_en"}
+    ).json()["campaign_id"]
+    a = client.post(
+        "/api/applications",
+        json={"campaign_id": campaign_id, "company_name": "Acme", "track": "other", "role": "SWE"},
+    ).json()
+    b = client.post(
+        "/api/applications",
+        json={"campaign_id": campaign_id, "company_name": "Beta", "track": "other", "role": "SWE"},
+    ).json()
+
+    r = client.patch(
+        f"/api/applications/{a['application_id']}",
+        json={
+            "company_name": "Acme Renamed",
+            "track": "midcareer",
+            "role": "SWE",
+            "deadline_at": "2031-05-01T00:00:00Z",
+        },
+    )
+    assert r.status_code == 200
+    assert r.json()["company"] == "Acme Renamed"
+    assert r.json()["track"] == "midcareer"
+    assert r.json()["deadline_at"].startswith("2031-05-01")
+
+    got = client.get(f"/api/applications/{a['application_id']}").json()
+    assert got["company"] == "Acme Renamed"
+    rows = client.get(f"/api/campaigns/{campaign_id}/applications").json()
+    assert any(row["company"] == "Acme Renamed" for row in rows)
+
+    conflict = client.patch(
+        f"/api/applications/{b['application_id']}",
+        json={"company_name": "Acme Renamed", "track": "midcareer", "role": "SWE"},
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["detail"]["code"] == "application_exists"
+
+    missing = client.patch("/api/applications/999", json={"company_name": "X", "track": "other"})
+    assert missing.status_code == 404
+    assert missing.json()["detail"]["code"] == "not_found"
+
+
+def test_delete_application(client: TestClient, settings: Settings) -> None:
+    campaign_id = client.post(
+        "/api/campaigns", json={"name": "del-camp", "kind": "other", "region_pack": "global_en"}
+    ).json()["campaign_id"]
+    app_id = client.post(
+        "/api/applications",
+        json={"campaign_id": campaign_id, "company_name": "Acme", "track": "other"},
+    ).json()["application_id"]
+    client.post(
+        f"/api/applications/{app_id}/events",
+        json={"event_type": "interview", "occurred_at": "2031-01-01T00:00:00Z"},
+    )
+    client.post(
+        f"/api/applications/{app_id}/events",
+        json={"event_type": "ack", "occurred_at": "2031-01-02T00:00:00Z"},
+    )
+
+    r = client.delete(f"/api/applications/{app_id}")
+    assert r.status_code == 200
+    assert r.json()["deleted_events"] == 2
+
+    assert client.get(f"/api/applications/{app_id}").status_code == 404
+    rows = client.get(f"/api/campaigns/{campaign_id}/applications").json()
+    assert all(row["application_id"] != app_id for row in rows)
+
+    conn = connect(settings.db_path)
+    try:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM audit_log WHERE action = 'application.delete' AND row_id = ?",
+            (app_id,),
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    assert count == 1
+
+    assert client.delete(f"/api/applications/{app_id}").status_code == 404
+
+
+def test_delete_event(client: TestClient) -> None:
+    campaign_id = client.post(
+        "/api/campaigns", json={"name": "ev-camp", "kind": "other", "region_pack": "global_en"}
+    ).json()["campaign_id"]
+    app_id = client.post(
+        "/api/applications",
+        json={"campaign_id": campaign_id, "company_name": "Acme", "track": "other"},
+    ).json()["application_id"]
+    other_id = client.post(
+        "/api/applications",
+        json={"campaign_id": campaign_id, "company_name": "Beta", "track": "other"},
+    ).json()["application_id"]
+
+    r = client.post(
+        f"/api/applications/{app_id}/events",
+        json={"event_type": "interview", "occurred_at": "2031-01-01T00:00:00Z"},
+    )
+    assert r.json()["auto_status"] == "interviewing"
+    event_id = r.json()["events"][0]["event_id"]
+
+    assert client.delete(f"/api/applications/{other_id}/events/{event_id}").status_code == 404
+
+    r = client.delete(f"/api/applications/{app_id}/events/{event_id}")
+    assert r.status_code == 200
+    assert r.json()["auto_status"] == "unrecorded"
+    assert r.json()["last_event_at"] is None
+    assert r.json()["applied_at"] is None
+
+
+def test_delete_campaign(client: TestClient) -> None:
+    active = client.post(
+        "/api/campaigns", json={"name": "del-c1", "kind": "other", "region_pack": "global_en"}
+    ).json()
+    other = client.post(
+        "/api/campaigns", json={"name": "del-c2", "kind": "other", "region_pack": "global_en"}
+    ).json()
+    client.post(f"/api/campaigns/{active['campaign_id']}/activate")  # make 'active' active again
+
+    app_id = client.post(
+        "/api/applications",
+        json={"campaign_id": active["campaign_id"], "company_name": "Acme", "track": "other"},
+    ).json()["application_id"]
+    client.post(
+        f"/api/applications/{app_id}/events",
+        json={"event_type": "interview", "occurred_at": "2031-01-01T00:00:00Z"},
+    )
+    client.post(
+        "/api/applications",
+        json={"campaign_id": active["campaign_id"], "company_name": "Beta", "track": "other"},
+    )
+
+    r = client.delete(f"/api/campaigns/{active['campaign_id']}")
+    assert r.status_code == 200
+    assert r.json() == {"deleted_applications": 2, "deleted_events": 1}
+
+    campaigns = client.get("/api/campaigns").json()
+    assert all(c["campaign_id"] != active["campaign_id"] for c in campaigns)
+    remaining = next(c for c in campaigns if c["campaign_id"] == other["campaign_id"])
+    assert remaining["is_active"] is True
+
+    assert client.delete("/api/campaigns/999").status_code == 404
+
+
+def test_duplicate_event_conflicts(client: TestClient) -> None:
+    campaign_id = client.post(
+        "/api/campaigns", json={"name": "dup-ev", "kind": "other", "region_pack": "global_en"}
+    ).json()["campaign_id"]
+    app_id = client.post(
+        "/api/applications",
+        json={"campaign_id": campaign_id, "company_name": "Acme", "track": "other"},
+    ).json()["application_id"]
+    body = {"event_type": "interview", "occurred_at": "2031-01-01T00:00:00Z"}
+    assert client.post(f"/api/applications/{app_id}/events", json=body).status_code == 201
+    second = client.post(f"/api/applications/{app_id}/events", json=body)
+    assert second.status_code == 409
+    assert second.json()["detail"]["code"] == "event_exists"
+
+
+def test_application_input_validation(client: TestClient) -> None:
+    campaign_id = client.post(
+        "/api/campaigns", json={"name": "val-camp", "kind": "other", "region_pack": "global_en"}
+    ).json()["campaign_id"]
+
+    blank = client.post(
+        "/api/applications",
+        json={"campaign_id": campaign_id, "company_name": "   ", "track": "other"},
+    )
+    assert blank.status_code == 422
+
+    bad_url = client.post(
+        "/api/applications",
+        json={
+            "campaign_id": campaign_id,
+            "company_name": "Acme",
+            "track": "other",
+            "job_url": "ftp://x",
+        },
+    )
+    assert bad_url.status_code == 422
+
+    r = client.post(
+        "/api/applications",
+        json={
+            "campaign_id": campaign_id,
+            "company_name": "Gamma",
+            "track": "other",
+            "initial_status": "applied",
+        },
+    )
+    assert r.status_code == 201
+    assert r.json()["status"] == "applied"
+    assert r.json()["user_status"] == "applied"
+    assert r.json()["auto_status"] == "unrecorded"
+
+
+def test_dashboard_windows(client: TestClient) -> None:
+    campaign_id = client.post(
+        "/api/campaigns", json={"name": "dash-camp", "kind": "other", "region_pack": "global_en"}
+    ).json()["campaign_id"]
+    now = datetime.now(UTC)
+
+    in_week_id = client.post(
+        "/api/applications",
+        json={"campaign_id": campaign_id, "company_name": "Acme", "track": "other"},
+    ).json()["application_id"]
+    client.patch(
+        f"/api/applications/{in_week_id}",
+        json={
+            "company_name": "Acme",
+            "track": "other",
+            "deadline_at": (now + timedelta(days=2)).isoformat(),
+        },
+    )
+
+    overdue_id = client.post(
+        "/api/applications",
+        json={"campaign_id": campaign_id, "company_name": "Beta", "track": "other"},
+    ).json()["application_id"]
+    client.patch(
+        f"/api/applications/{overdue_id}",
+        json={
+            "company_name": "Beta",
+            "track": "other",
+            "deadline_at": (now - timedelta(days=1)).isoformat(),
+        },
+    )
+
+    interview_id = client.post(
+        "/api/applications",
+        json={"campaign_id": campaign_id, "company_name": "Gamma", "track": "other"},
+    ).json()["application_id"]
+    client.post(
+        f"/api/applications/{interview_id}/events",
+        json={"event_type": "interview", "occurred_at": (now + timedelta(days=3)).isoformat()},
+    )
+
+    dash = client.get(f"/api/campaigns/{campaign_id}/dashboard").json()
+    upcoming_ids = {u["application_id"] for u in dash["upcoming"]}
+    assert in_week_id in upcoming_ids
+    assert overdue_id not in upcoming_ids
+    assert dash["interviews_next_7d"] == 1
+
+    tz = ZoneInfo("UTC")  # global_en's default_tz
+    local_now = now.astimezone(tz)
+    days_to_sunday = 6 - local_now.weekday()
+    week_end = (local_now + timedelta(days=days_to_sunday)).replace(
+        hour=23, minute=59, second=59, microsecond=999000
+    )
+    expected = 1 if now + timedelta(days=2) <= week_end else 0
+    assert dash["deadlines_this_week"] == expected

@@ -43,8 +43,8 @@ from jobpilot.store.db import (
 )
 from jobpilot.store.repo import CampaignRepo, EmailAccountRepo, SourceStateRepo
 
-console = Console()
-err = Console(stderr=True)
+console = Console(highlight=False)
+err = Console(stderr=True, highlight=False)
 
 
 @dataclass

@@ -93,9 +93,10 @@ def test_user_status_wins_and_is_audited(conn: sqlite3.Connection, application: 
     assert app.auto_status is ApplicationStatus.INTERVIEWING
     assert app.status is ApplicationStatus.REJECTED
     # a later automatic event does not change what the user sees
-    app = manual.log_event(
+    app, inserted = manual.log_event(
         conn, application_id=application, event_type=EventType.OFFER, occurred_at=T0
     )
+    assert inserted
     assert app.auto_status is ApplicationStatus.OFFER
     assert app.status is ApplicationStatus.REJECTED
     audit = conn.execute(
@@ -103,6 +104,23 @@ def test_user_status_wins_and_is_audited(conn: sqlite3.Connection, application: 
     ).fetchone()
     assert '"user_status": null' in audit["before_json"]
     assert '"user_status": "rejected"' in audit["after_json"]
+
+
+def test_delete_event_clears_derived_fields(conn: sqlite3.Connection, application: int) -> None:
+    app, inserted = manual.log_event(
+        conn, application_id=application, event_type=EventType.INTERVIEW, occurred_at=T0
+    )
+    assert inserted
+    assert app.auto_status is ApplicationStatus.INTERVIEWING
+    event_id = EventRepo(conn).list_for(application)[0].event_id
+
+    app = manual.delete_event(conn, event_id=event_id)
+    assert app.auto_status is ApplicationStatus.UNRECORDED
+    assert app.last_event_at is None
+    assert app.applied_at is None
+
+    with pytest.raises(KeyError):
+        manual.delete_event(conn, event_id=event_id)
 
 
 def test_add_application_dedupes_company_and_natural_key(conn: sqlite3.Connection) -> None:
