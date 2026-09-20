@@ -16,13 +16,12 @@ export function TopBar() {
       </div>
 
       <div className="ml-auto flex items-center gap-2">
-        <div role="tablist" aria-label={t('settings.prefs.language')} className="inline-flex rounded-full border border-cream-200 bg-cream-100 p-0.5 text-xs">
+        <div role="group" aria-label={t('settings.prefs.language')} className="inline-flex rounded-full border border-cream-200 bg-cream-100 p-0.5 text-xs">
           {LANGS.map((l) => (
             <button
               key={l}
               type="button"
-              role="tab"
-              aria-selected={lang === l}
+              aria-pressed={lang === l}
               onClick={() => setLang(l)}
               className={
                 lang === l

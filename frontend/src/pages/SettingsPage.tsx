@@ -3,16 +3,21 @@ import { useSearchParams } from 'react-router-dom';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Pill, SourceBadge } from '@/components/ui/Chips';
+import { ConfirmCard } from '@/components/ui/ConfirmCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Field, inputClass } from '@/components/ui/Field';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PaperCard } from '@/components/ui/PaperCard';
-import { useActivateCampaign, useCreateCampaign, useMeta, useUpdateCampaign } from '@/hooks/useBoard';
+import { useActivateCampaign, useCreateCampaign, useDeleteCampaign, useMeta, useUpdateCampaign } from '@/hooks/useBoard';
 import { LANGS, LANG_LABEL, type Lang } from '@/i18n';
+import { apiMessage } from '@/lib/api';
 import { useCampaign } from '@/lib/campaign';
 import { useT } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
+import { useToast } from '@/lib/toast';
 import type { Campaign, CampaignIn, Kind } from '@/lib/types';
+
+const DELETE_TOKEN = 'DELETE';
 
 /** Create (no `initial`) or edit (with `initial`) a cycle; same fields either way. */
 function CampaignForm({ initial, onDone }: { initial?: Campaign; onDone: () => void }) {
@@ -21,6 +26,7 @@ function CampaignForm({ initial, onDone }: { initial?: Campaign; onDone: () => v
   const create = useCreateCampaign();
   const update = useUpdateCampaign();
   const { select } = useCampaign();
+  const toast = useToast();
   const [form, setForm] = useState({
     name: initial?.name ?? '',
     kind: initial?.kind ?? ('newgrad' as Kind),
@@ -35,8 +41,16 @@ function CampaignForm({ initial, onDone }: { initial?: Campaign; onDone: () => v
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const body: CampaignIn = { ...form, starts_on: form.starts_on || null, ends_on: form.ends_on || null };
-    if (initial) update.mutate({ id: initial.campaign_id, body }, { onSuccess: onDone });
-    else create.mutate(body, { onSuccess: (c) => { select(c.campaign_id); onDone(); } });
+    if (initial) {
+      update.mutate(
+        { id: initial.campaign_id, body },
+        { onSuccess: () => { toast.show(t('toast.campaign_updated')); onDone(); } },
+      );
+    } else {
+      create.mutate(body, {
+        onSuccess: (c) => { select(c.campaign_id); toast.show(t('toast.campaign_created')); onDone(); },
+      });
+    }
   };
 
   return (
@@ -62,7 +76,7 @@ function CampaignForm({ initial, onDone }: { initial?: Campaign; onDone: () => v
           <input className={inputClass} type="date" value={form.ends_on} onChange={set('ends_on')} />
         </Field>
       </div>
-      {error ? <div className="md:col-span-2"><Alert tone="error">{error.message}</Alert></div> : null}
+      {error ? <div className="md:col-span-2"><Alert tone="error">{apiMessage(t, error)}</Alert></div> : null}
       <div className="flex justify-end gap-2 md:col-span-2">
         <Button variant="ghost" onClick={onDone}>{t('common.cancel')}</Button>
         <Button type="submit" disabled={pending}>{initial ? t('common.save') : t('common.add')}</Button>
@@ -77,13 +91,12 @@ type SettingsTab = (typeof SOURCE_TABS)[number];
 function SegmentedTabs({ tab, onChange }: { tab: SettingsTab; onChange: (tab: SettingsTab) => void }) {
   const { t } = useT();
   return (
-    <div role="tablist" className="inline-flex rounded-full border border-cream-200 bg-cream-100 p-1 text-sm">
+    <div role="group" aria-label={t('settings.title')} className="inline-flex rounded-full border border-cream-200 bg-cream-100 p-1 text-sm">
       {SOURCE_TABS.map((tb) => (
         <button
           key={tb}
           type="button"
-          role="tab"
-          aria-selected={tab === tb}
+          aria-pressed={tab === tb}
           onClick={() => onChange(tb)}
           className={[
             'rounded-full px-4 py-1.5 font-medium transition-colors',
@@ -103,8 +116,18 @@ export function SettingsPage() {
   const meta = useMeta();
   const { campaigns } = useCampaign();
   const activate = useActivateCampaign();
+  const del = useDeleteCampaign();
+  const toast = useToast();
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
+  const [typed, setTyped] = useState('');
+  const resetDelete = () => {
+    setDeletingId(null);
+    setDeleteStep(1);
+    setTyped('');
+  };
   const [params, setParams] = useSearchParams();
   const tab: SettingsTab = params.get('tab') === 'sources' ? 'sources' : 'settings';
   const setTab = (next: SettingsTab) => setParams(next === 'settings' ? {} : { tab: next });
@@ -140,6 +163,7 @@ export function SettingsPage() {
           {creating ? null : <Button size="sm" onClick={() => setCreating(true)}>{t('settings.campaigns.new')}</Button>}
         </div>
         {creating ? <div className="mb-4"><CampaignForm onDone={() => setCreating(false)} /></div> : null}
+        {activate.isError ? <div className="mb-3"><Alert tone="error">{apiMessage(t, activate.error)}</Alert></div> : null}
         {campaigns.length === 0 ? (
           <p className="text-sm text-ink-500">{t('settings.campaigns.empty')}</p>
         ) : (
@@ -156,14 +180,58 @@ export function SettingsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-cream-200">
-                {campaigns.map((c) =>
-                  editingId === c.campaign_id ? (
-                    <tr key={c.campaign_id}>
-                      <td colSpan={6} className="px-4 py-4">
-                        <CampaignForm initial={c} onDone={() => setEditingId(null)} />
-                      </td>
-                    </tr>
-                  ) : (
+                {campaigns.map((c) => {
+                  if (editingId === c.campaign_id) {
+                    return (
+                      <tr key={c.campaign_id}>
+                        <td colSpan={6} className="px-4 py-4">
+                          <CampaignForm initial={c} onDone={() => setEditingId(null)} />
+                        </td>
+                      </tr>
+                    );
+                  }
+                  if (deletingId === c.campaign_id) {
+                    return (
+                      <tr key={c.campaign_id}>
+                        <td colSpan={6} className="px-4 py-4">
+                          <ConfirmCard
+                            title={t('settings.campaigns.delete')}
+                            hint={deleteStep === 1 ? t('settings.campaigns.delete.step1', { name: c.name, n: c.application_count }) : undefined}
+                            busy={del.isPending}
+                            confirmVariant="danger"
+                            confirmLabel={deleteStep === 1 ? t('settings.campaigns.delete.confirm') : t('settings.campaigns.delete.final')}
+                            confirmDisabled={deleteStep === 2 && typed !== DELETE_TOKEN}
+                            onCancel={resetDelete}
+                            onConfirm={() => {
+                              if (deleteStep === 1) {
+                                setDeleteStep(2);
+                                return;
+                              }
+                              del.mutate(c.campaign_id, {
+                                onSuccess: () => {
+                                  resetDelete();
+                                  toast.show(t('toast.campaign_deleted'));
+                                },
+                              });
+                            }}
+                          >
+                            {deleteStep === 2 ? (
+                              <Field label={t('settings.campaigns.delete.type_delete')}>
+                                <input
+                                  className={inputClass}
+                                  value={typed}
+                                  onChange={(e) => setTyped(e.target.value)}
+                                  autoFocus
+                                />
+                              </Field>
+                            ) : null}
+                            {del.isError ? <div className="mt-3"><Alert tone="error">{apiMessage(t, del.error)}</Alert></div> : null}
+                          </ConfirmCard>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  return (
                     <tr key={c.campaign_id}>
                       <td className="px-4 py-3 text-ink-900">{c.name}{c.is_active ? <Pill className="ml-2">{t('settings.campaigns.active')}</Pill> : null}</td>
                       <td className="px-4 py-3 text-ink-700">{t(`kind.${c.kind}`)}</td>
@@ -175,14 +243,23 @@ export function SettingsPage() {
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         <Button size="sm" variant="ghost" onClick={() => setEditingId(c.campaign_id)}>{t('settings.campaigns.edit')}</Button>
                         {c.is_active ? null : (
-                          <Button size="sm" variant="outline" className="ml-2" disabled={activate.isPending} onClick={() => activate.mutate(c.campaign_id)}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="ml-2"
+                            disabled={activate.isPending}
+                            onClick={() => activate.mutate(c.campaign_id, { onSuccess: () => toast.show(t('toast.campaign_activated')) })}
+                          >
                             {t('settings.campaigns.activate')}
                           </Button>
                         )}
+                        <Button size="sm" variant="ghost" className="ml-2 text-neg-500" onClick={() => setDeletingId(c.campaign_id)}>
+                          {t('settings.campaigns.delete')}
+                        </Button>
                       </td>
                     </tr>
-                  ),
-                )}
+                  );
+                })}
               </tbody>
             </table>
           </div>

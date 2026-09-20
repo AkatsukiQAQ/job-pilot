@@ -9,11 +9,13 @@ import {
   ExternalLink,
   FileText,
   StickyNote,
+  Trash2,
   Users,
   XCircle,
 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ApplicationForm } from '@/components/ApplicationForm';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Pill, SourceBadge, StatusChip } from '@/components/ui/Chips';
@@ -21,10 +23,20 @@ import { ConfirmCard } from '@/components/ui/ConfirmCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Field, inputClass } from '@/components/ui/Field';
 import { PaperCard } from '@/components/ui/PaperCard';
-import { useAddEvent, useApplication, useMeta, useSetStatus } from '@/hooks/useBoard';
+import {
+  useAddEvent,
+  useApplication,
+  useDeleteApplication,
+  useDeleteEvent,
+  useMeta,
+  useSetStatus,
+  useUpdateApplication,
+} from '@/hooks/useBoard';
+import { ApiError, apiMessage } from '@/lib/api';
 import { useCampaign } from '@/lib/campaign';
-import { fmtDate, fmtDateTime, nowLocalInput } from '@/lib/format';
+import { fmtDate, fmtDateTime, nowInputInTz, zonedInputToIso } from '@/lib/format';
 import { useT } from '@/lib/i18n';
+import { useToast } from '@/lib/toast';
 import type { ApplicationDetail, Status } from '@/lib/types';
 
 const AUTO = '__auto__';
@@ -68,7 +80,7 @@ function StatusEditor({
   const meta = useMeta();
   const setStatus = useSetStatus(app.application_id);
   const [target, setTarget] = useState<string>(app.user_status ?? AUTO);
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState(app.excluded_reason ?? '');
   const after: Status = target === AUTO ? app.auto_status : (target as Status);
 
   return (
@@ -88,7 +100,7 @@ function StatusEditor({
           </Field>
         ) : null}
       </div>
-      {setStatus.isError ? <Alert tone="error">{setStatus.error.message}</Alert> : null}
+      {setStatus.isError ? <Alert tone="error">{apiMessage(t, setStatus.error)}</Alert> : null}
       <ConfirmCard
         title={`${t('application.confirm.change_to')} ${t(`status.${after}`)}`}
         eyebrow={t('application.confirm.eyebrow')}
@@ -109,18 +121,24 @@ function StatusEditor({
   );
 }
 
-function EventForm({ app, onDone }: { app: ApplicationDetail; onDone: () => void }) {
+function EventForm({ app, tz, onDone }: { app: ApplicationDetail; tz: string; onDone: () => void }) {
   const { t } = useT();
   const meta = useMeta();
+  const toast = useToast();
   const add = useAddEvent(app.application_id);
   const [type, setType] = useState('interview');
-  const [when, setWhen] = useState(nowLocalInput);
+  const [when, setWhen] = useState(() => nowInputInTz(tz));
   const [summary, setSummary] = useState('');
   const submit = (e: FormEvent) => {
     e.preventDefault();
     add.mutate(
-      { event_type: type, occurred_at: new Date(when).toISOString(), summary: summary || null },
-      { onSuccess: onDone },
+      { event_type: type, occurred_at: zonedInputToIso(when, tz), summary: summary || null },
+      {
+        onSuccess: () => {
+          toast.show(t('toast.event_logged'));
+          onDone();
+        },
+      },
     );
   };
   return (
@@ -134,11 +152,12 @@ function EventForm({ app, onDone }: { app: ApplicationDetail; onDone: () => void
       </Field>
       <Field label={t('application.events.time')}>
         <input className={inputClass} type="datetime-local" required value={when} onChange={(e) => setWhen(e.target.value)} />
+        <p className="mt-1 text-xs text-ink-500">{t('time.tz_hint', { tz })}</p>
       </Field>
       <Field label={`${t('application.events.summary')} (${t('common.optional')})`}>
         <input className={inputClass} maxLength={120} value={summary} onChange={(e) => setSummary(e.target.value)} />
       </Field>
-      {add.isError ? <div className="md:col-span-3"><Alert tone="error">{add.error.message}</Alert></div> : null}
+      {add.isError ? <div className="md:col-span-3"><Alert tone="error">{apiMessage(t, add.error)}</Alert></div> : null}
       <div className="flex items-center gap-2 text-xs text-ink-500 md:col-span-3">
         <SourceBadge source="manual" /> {t('common.source_note')}
       </div>
@@ -153,18 +172,37 @@ function EventForm({ app, onDone }: { app: ApplicationDetail; onDone: () => void
 export function ApplicationPage() {
   const { t, lang } = useT();
   const id = Number(useParams().id);
+  const navigate = useNavigate();
   const meta = useMeta();
   const q = useApplication(id);
   const { campaigns, current, select } = useCampaign();
   const addNote = useAddEvent(id);
+  const toast = useToast();
+  const update = useUpdateApplication(id);
+  const del = useDeleteApplication(id);
+  const delEvent = useDeleteEvent(id);
   const [editing, setEditing] = useState(false);
+  const [editingFields, setEditingFields] = useState(false);
   const [logging, setLogging] = useState(false);
   const [accepted, setAccepted] = useState<Set<number>>(new Set());
   const [confirmedAt, setConfirmedAt] = useState<string | null>(null);
   const [noteText, setNoteText] = useState('');
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deletingEventId, setDeletingEventId] = useState<number | null>(null);
   const tz = meta.data?.tz ?? 'UTC';
 
-  if (q.isError) return <EmptyState title={t('application.not_found')} action={<Link className="text-sm underline" to="/pipeline">{t('common.back')}</Link>} />;
+  if (q.isError) {
+    const status = q.error instanceof ApiError ? q.error.status : undefined;
+    if (status === 404) {
+      return <EmptyState title={t('application.not_found')} action={<Link className="text-sm underline" to="/pipeline">{t('common.back')}</Link>} />;
+    }
+    return (
+      <div className="space-y-3">
+        <Alert tone="error">{apiMessage(t, q.error)}</Alert>
+        <Button variant="outline" size="sm" onClick={() => q.refetch()}>{t('common.retry')}</Button>
+      </div>
+    );
+  }
   if (!q.data) return <p className="text-sm text-ink-500">{t('common.loading')}</p>;
   const app = q.data;
 
@@ -207,33 +245,59 @@ export function ApplicationPage() {
 
       <PaperCard>
         <div className="grid gap-4 md:grid-cols-[1.6fr_1fr]">
-          <div className="min-w-0">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
-              {t('application.eyebrow')} · {campaignName}
+          {editingFields ? (
+            <ApplicationForm
+              mode="edit"
+              initial={app}
+              tz={tz}
+              tracks={meta.data?.tracks ?? []}
+              statuses={meta.data?.statuses ?? []}
+              busy={update.isPending}
+              error={update.isError ? <Alert tone="error">{apiMessage(t, update.error)}</Alert> : undefined}
+              onSubmit={(v) =>
+                update.mutate(v, {
+                  onSuccess: () => {
+                    setEditingFields(false);
+                    toast.show(t('toast.application_updated'));
+                  },
+                })
+              }
+              onCancel={() => setEditingFields(false)}
+            />
+          ) : (
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
+                {t('application.eyebrow')} · {campaignName}
+              </div>
+              <h1 className="serif mt-0.5 text-3xl font-medium tracking-tight text-ink-900">{app.company}</h1>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {app.role ? <span className="text-sm text-ink-700">{app.role}</span> : null}
+                <Pill>{t(`track.${app.track}`)}</Pill>
+              </div>
+              <div className="mt-3">
+                <SourceBadge source="manual" />
+              </div>
             </div>
-            <h1 className="serif mt-0.5 text-3xl font-medium tracking-tight text-ink-900">{app.company}</h1>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {app.role ? <span className="text-sm text-ink-700">{app.role}</span> : null}
-              <Pill>{t(`track.${app.track}`)}</Pill>
-            </div>
-            <div className="mt-3">
-              <SourceBadge source="manual" />
-            </div>
-          </div>
+          )}
           <div className="flex flex-col items-start gap-2 md:items-end">
             <div className="flex flex-wrap items-center gap-2">
               <StatusChip status={app.status} autoStatus={app.auto_status} />
-              {editing ? null : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setEditing(true);
-                    setConfirmedAt(null);
-                  }}
-                >
-                  {t('application.change_status')}
-                </Button>
+              {editing || editingFields ? null : (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditing(true);
+                      setConfirmedAt(null);
+                    }}
+                  >
+                    {t('application.change_status')}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setEditingFields(true)}>
+                    {t('common.edit')}
+                  </Button>
+                </>
               )}
             </div>
             {!editing && confirmedAt ? (
@@ -291,7 +355,7 @@ export function ApplicationPage() {
               <h2 className="text-sm font-semibold text-ink-900">{t('application.events')}</h2>
               {logging ? null : <Button size="sm" onClick={() => setLogging(true)}>{t('application.events.add')}</Button>}
             </div>
-            {logging ? <div className="mb-4"><EventForm app={app} onDone={() => setLogging(false)} /></div> : null}
+            {logging ? <div className="mb-4"><EventForm app={app} tz={tz} onDone={() => setLogging(false)} /></div> : null}
             {app.events.length === 0 ? (
               <p className="text-sm text-ink-500">{t('application.events.empty')}</p>
             ) : (
@@ -314,8 +378,37 @@ export function ApplicationPage() {
                           {e.summary ? <div className="text-xs text-ink-500">{e.summary}</div> : null}
                         </div>
                         <SourceBadge source={e.source} />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0"
+                          aria-label={t('application.events.delete')}
+                          onClick={() => setDeletingEventId(e.event_id)}
+                        >
+                          <Trash2 size={14} />
+                        </Button>
                       </div>
-                      {needsReview ? (
+                      {deletingEventId === e.event_id ? (
+                        <div className="mt-2">
+                          <ConfirmCard
+                            title={t('application.events.delete_title')}
+                            hint={t('application.events.delete_hint')}
+                            confirmVariant="danger"
+                            confirmLabel={t('common.delete')}
+                            busy={delEvent.isPending}
+                            onCancel={() => setDeletingEventId(null)}
+                            onConfirm={() =>
+                              delEvent.mutate(e.event_id, {
+                                onSuccess: () => {
+                                  setDeletingEventId(null);
+                                  toast.show(t('toast.event_deleted'));
+                                },
+                              })
+                            }
+                          />
+                          {delEvent.isError ? <div className="mt-2"><Alert tone="error">{apiMessage(t, delEvent.error)}</Alert></div> : null}
+                        </div>
+                      ) : needsReview ? (
                         <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
                           <span
                             className="chip inline-flex items-center rounded-full border px-2 py-0.5 font-semibold"
@@ -345,22 +438,29 @@ export function ApplicationPage() {
           <PaperCard>
             <h2 className="hand-body mb-2 text-lg text-ink-900">{t('application.notes')}</h2>
             {app.notes ? <p className="whitespace-pre-wrap text-sm text-ink-700">{app.notes}</p> : null}
-            {addNote.isError ? <div className="mt-2"><Alert tone="error">{addNote.error.message}</Alert></div> : null}
+            {addNote.isError ? <div className="mt-2"><Alert tone="error">{apiMessage(t, addNote.error)}</Alert></div> : null}
             <textarea
               className={`${inputClass} hand-body mt-2 resize-y text-[15px] leading-[1.75]`}
               rows={3}
+              maxLength={120}
               placeholder={t('application.notes.placeholder')}
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
             />
-            <div className="mt-2 flex justify-end">
+            <div className="mt-1 flex items-center justify-between">
+              <span className="text-[11px] text-ink-500">{t('common.chars_left', { n: 120 - noteText.length })}</span>
               <Button
                 size="sm"
                 disabled={!noteText.trim() || addNote.isPending}
                 onClick={() =>
                   addNote.mutate(
                     { event_type: 'note', occurred_at: new Date().toISOString(), summary: noteText.trim() },
-                    { onSuccess: () => setNoteText('') },
+                    {
+                      onSuccess: () => {
+                        setNoteText('');
+                        toast.show(t('toast.note_saved'));
+                      },
+                    },
                   )
                 }
               >
@@ -376,6 +476,37 @@ export function ApplicationPage() {
           </PaperCard>
         </div>
       </div>
+
+      <PaperCard>
+        <h2 className="text-sm font-semibold text-ink-900">{t('application.delete.zone')}</h2>
+        <p className="mt-1 text-xs text-ink-500">{t('application.delete.hint', { n: app.events.length })}</p>
+        {confirmingDelete ? (
+          <div className="mt-3">
+            <ConfirmCard
+              title={t('application.delete.title')}
+              hint={t('application.delete.hint', { n: app.events.length })}
+              badge={<SourceBadge source="manual" />}
+              confirmVariant="danger"
+              confirmLabel={t('common.delete')}
+              busy={del.isPending}
+              onCancel={() => setConfirmingDelete(false)}
+              onConfirm={() =>
+                del.mutate(undefined, {
+                  onSuccess: () => {
+                    toast.show(t('toast.application_deleted'));
+                    navigate('/pipeline');
+                  },
+                })
+              }
+            />
+            {del.isError ? <div className="mt-2"><Alert tone="error">{apiMessage(t, del.error)}</Alert></div> : null}
+          </div>
+        ) : (
+          <div className="mt-3">
+            <Button variant="danger" size="sm" onClick={() => setConfirmingDelete(true)}>{t('common.delete')}</Button>
+          </div>
+        )}
+      </PaperCard>
     </div>
   );
 }

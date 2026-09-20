@@ -4,10 +4,13 @@ import { fetchJson, postJson } from '@/lib/api';
 import type {
   ApplicationDetail,
   ApplicationIn,
+  ApplicationPatch,
   ApplicationRow,
   Campaign,
+  CampaignDeleteOut,
   CampaignIn,
   Dashboard,
+  DeleteOut,
   Meta,
   Status,
 } from '@/lib/types';
@@ -36,6 +39,17 @@ export function useUpdateCampaign() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['campaigns'] });
       qc.invalidateQueries({ queryKey: ['meta'] }); // region pack (tz) may change
+    },
+  });
+}
+
+export function useDeleteCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => fetchJson<CampaignDeleteOut>(`/api/campaigns/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['campaigns'] });
+      qc.invalidateQueries({ queryKey: ['meta'] });
     },
   });
 }
@@ -91,9 +105,32 @@ export function useCreateApplication() {
   );
 }
 
+export function useUpdateApplication(id: number) {
+  return useApplicationMutation((body: ApplicationPatch) =>
+    fetchJson<ApplicationDetail>(`/api/applications/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  );
+}
+
+export function useDeleteApplication(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => fetchJson<DeleteOut>(`/api/applications/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.removeQueries({ queryKey: ['applications', id] });
+      qc.invalidateQueries({ queryKey: ['campaigns'] });
+    },
+  });
+}
+
 export function useAddEvent(id: number) {
   return useApplicationMutation((body: { event_type: string; occurred_at: string; summary?: string | null }) =>
     postJson<ApplicationDetail>(`/api/applications/${id}/events`, body),
+  );
+}
+
+export function useDeleteEvent(appId: number) {
+  return useApplicationMutation((eventId: number) =>
+    fetchJson<ApplicationDetail>(`/api/applications/${appId}/events/${eventId}`, { method: 'DELETE' }),
   );
 }
 

@@ -1,6 +1,7 @@
 import { ArrowUpRight, Plus } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { ApplicationForm } from '@/components/ApplicationForm';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Pill, SourceBadge, StatusChip } from '@/components/ui/Chips';
@@ -9,11 +10,13 @@ import { Field, inputClass } from '@/components/ui/Field';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PaperCard } from '@/components/ui/PaperCard';
 import { useApplications, useCreateApplication, useMeta } from '@/hooks/useBoard';
+import { ApiError, apiMessage } from '@/lib/api';
 import { useCampaign } from '@/lib/campaign';
 import { daysAgo, fmtDateTime } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { groupOf, STATUS_GROUPS, STATUS_ORDER, type StatusGroup } from '@/lib/status';
-import type { ApplicationRow, Track } from '@/lib/types';
+import { useToast } from '@/lib/toast';
+import type { ApplicationRow } from '@/lib/types';
 
 const ALL_TRACKS = 'all';
 const ALL_GROUPS = 'all';
@@ -25,70 +28,57 @@ function AddForm({ campaignId, onDone }: { campaignId: number; onDone: () => voi
   const meta = useMeta();
   const create = useCreateApplication();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ company_name: '', role: '', track: 'newgrad' as Track, job_url: '', notes: '' });
-  const [companyError, setCompanyError] = useState(false);
-  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => {
-    setForm({ ...form, [k]: e.target.value });
-    if (companyError) setCompanyError(false);
-  };
+  const toast = useToast();
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!form.company_name.trim()) {
-      setCompanyError(true);
-      return;
-    }
-    create.mutate(
-      {
-        campaign_id: campaignId,
-        company_name: form.company_name,
-        role: form.role || null,
-        track: form.track,
-        job_url: form.job_url || null,
-        notes: form.notes || null,
-      },
-      { onSuccess: (detail) => { onDone(); navigate(`/pipeline/${detail.application_id}`); } },
-    );
-  };
+  const err = create.error;
+  const duplicateId =
+    err instanceof ApiError && err.code === 'application_exists' && typeof err.extra?.existing_application_id === 'number'
+      ? err.extra.existing_application_id
+      : null;
 
   return (
     <PaperCard>
-      <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
-        <Field label={t('pipeline.form.company')}>
-          <input className={inputClass} value={form.company_name} onChange={set('company_name')} />
-        </Field>
-        <Field label={`${t('pipeline.form.role')} (${t('common.optional')})`}>
-          <input className={inputClass} value={form.role} onChange={set('role')} />
-        </Field>
-        <Field label={t('pipeline.form.track')}>
-          <select className={inputClass} value={form.track} onChange={set('track')}>
-            {(meta.data?.tracks ?? []).map((tr) => (
-              <option key={tr} value={tr}>{t(`track.${tr}`)}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label={`${t('pipeline.form.job_url')} (${t('common.optional')})`}>
-          <input className={inputClass} type="url" value={form.job_url} onChange={set('job_url')} />
-        </Field>
-        <div className="md:col-span-2">
-          <Field label={`${t('pipeline.form.notes')} (${t('common.optional')})`}>
-            <textarea className={inputClass} rows={2} value={form.notes} onChange={set('notes')} />
-          </Field>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-ink-500 md:col-span-2">
-          <SourceBadge source="manual" /> {t('common.source_note')}
-        </div>
-        {companyError ? (
-          <div className="md:col-span-2"><Alert tone="error">{t('pipeline.form.required')}</Alert></div>
-        ) : null}
-        {create.isError ? (
-          <div className="md:col-span-2"><Alert tone="error">{create.error.message}</Alert></div>
-        ) : null}
-        <div className="flex justify-end gap-2 md:col-span-2">
-          <Button variant="ghost" onClick={onDone}>{t('common.cancel')}</Button>
-          <Button type="submit" disabled={create.isPending}>{t('common.add')}</Button>
-        </div>
-      </form>
+      <ApplicationForm
+        mode="add"
+        tz={meta.data?.tz ?? 'UTC'}
+        tracks={meta.data?.tracks ?? []}
+        statuses={meta.data?.statuses ?? []}
+        busy={create.isPending}
+        error={
+          create.isError ? (
+            <Alert tone="error">
+              {apiMessage(t, err)}
+              {duplicateId !== null ? (
+                <>
+                  {' '}
+                  <Link to={`/pipeline/${duplicateId}`} className="underline">{t('application.duplicate.view_existing')}</Link>
+                </>
+              ) : null}
+            </Alert>
+          ) : undefined
+        }
+        onSubmit={(v) =>
+          create.mutate(
+            {
+              campaign_id: campaignId,
+              company_name: v.company_name,
+              role: v.role,
+              track: v.track,
+              job_url: v.job_url,
+              notes: v.notes,
+              initial_status: v.initial_status,
+            },
+            {
+              onSuccess: (detail) => {
+                onDone();
+                toast.show(t('toast.application_added'));
+                navigate(`/pipeline/${detail.application_id}`);
+              },
+            },
+          )
+        }
+        onCancel={onDone}
+      />
     </PaperCard>
   );
 }
@@ -176,20 +166,27 @@ export function PipelinePage() {
         }
       />
       {adding && current ? <AddForm campaignId={current.campaign_id} onDone={() => setAdding(false)} /> : null}
-      {apps.isError ? <Alert tone="error">{t('common.error', { message: apps.error.message })}</Alert> : null}
+      {apps.isLoading ? <p className="text-sm text-ink-500">{t('common.loading')}</p> : null}
+      {apps.isError ? (
+        <Alert tone="error">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>{t('common.error', { message: apps.error.message })}</span>
+            <Button variant="outline" size="sm" onClick={() => apps.refetch()}>{t('common.retry')}</Button>
+          </div>
+        </Alert>
+      ) : null}
       {apps.isSuccess && rows.length === 0 ? (
         <EmptyState title={t('pipeline.empty')} />
       ) : apps.isSuccess ? (
         <>
-          <div role="tablist" className="inline-flex rounded-full border border-cream-200 bg-cream-100 p-1 text-sm">
+          <div role="group" aria-label={t('pipeline.col.status')} className="inline-flex rounded-full border border-cream-200 bg-cream-100 p-1 text-sm">
             {([ALL_GROUPS, ...GROUP_KEYS] as GroupFilter[]).map((g) => {
               const count = g === ALL_GROUPS ? rows.length : rows.filter((r) => groupOf(r.status) === g).length;
               return (
                 <button
                   key={g}
                   type="button"
-                  role="tab"
-                  aria-selected={activeGroup === g}
+                  aria-pressed={activeGroup === g}
                   onClick={() => setActiveGroup(g)}
                   className={[
                     'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-medium transition-colors',

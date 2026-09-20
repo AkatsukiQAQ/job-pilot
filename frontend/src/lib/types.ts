@@ -83,6 +83,28 @@ export interface ApplicationIn {
   track: Track;
   job_url?: string | null;
   notes?: string | null;
+  initial_status?: Status | null;
+}
+
+export interface ApplicationPatch {
+  company_name: string;
+  role: string | null;
+  track: Track;
+  job_url: string | null;
+  notes: string | null;
+  portal_url: string | null;
+  deadline_at: string | null;
+  next_action: string | null;
+  next_action_due: string | null;
+}
+
+export interface DeleteOut {
+  deleted_events: number;
+}
+
+export interface CampaignDeleteOut {
+  deleted_applications: number;
+  deleted_events: number;
 }
 
 export interface UpcomingItem {
@@ -107,4 +129,6 @@ export interface Dashboard {
   counts_by_status: Partial<Record<Status, number>>;
   upcoming: UpcomingItem[];
   recent_events: RecentEvent[];
+  deadlines_this_week: number;
+  interviews_next_7d: number;
 }

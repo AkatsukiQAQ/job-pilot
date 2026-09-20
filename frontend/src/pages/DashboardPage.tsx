@@ -1,11 +1,14 @@
 import { CalendarClock, ListTodo } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { DistributionBar } from '@/components/DistributionBar';
 import { Alert } from '@/components/ui/Alert';
+import { Button } from '@/components/ui/Button';
 import { Pill } from '@/components/ui/Chips';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { PaperCard } from '@/components/ui/PaperCard';
 import { useDashboard, useMeta } from '@/hooks/useBoard';
+import { apiMessage } from '@/lib/api';
 import { useCampaign } from '@/lib/campaign';
 import { fmtDate, fmtDateTime, relativeDay } from '@/lib/format';
 import { useT } from '@/lib/i18n';
@@ -18,7 +21,6 @@ const GREETING_KEY: Partial<Record<Kind, 'dashboard.greeting.intern' | 'dashboar
   midcareer: 'dashboard.greeting.midcareer',
 };
 
-const INTERVIEW_EVENTS = new Set(['interview', 'final_interview', 'casual_interview']);
 const UPCOMING_ICON: Record<UpcomingItem['kind'], typeof CalendarClock> = {
   deadline: CalendarClock,
   next_action: ListTodo,
@@ -34,7 +36,7 @@ function groupCount(d: Dashboard, group: StatusGroup): number {
   return STATUS_GROUPS[group].reduce((n, s) => n + (d.counts_by_status[s] ?? 0), 0);
 }
 
-function KpiCard({ label, value, hint, highlight }: { label: string; value: number; hint?: string; highlight?: boolean }) {
+function KpiCard({ label, value, hint, highlight }: { label: string; value: ReactNode; hint?: string; highlight?: boolean }) {
   return (
     <div className={['card-paper p-4', highlight ? 'bg-cream-200 ring-2 ring-cream-400' : ''].join(' ')}>
       <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">{label}</div>
@@ -54,7 +56,6 @@ export function DashboardPage() {
   const meta = useMeta();
   const dash = useDashboard(current?.campaign_id ?? null);
   const tz = meta.data?.tz ?? 'UTC';
-  const now = Date.now();
 
   if (loaded && !current) {
     return (
@@ -65,16 +66,20 @@ export function DashboardPage() {
       />
     );
   }
-  if (dash.isError) return <Alert tone="error">{t('common.error', { message: dash.error.message })}</Alert>;
+  if (dash.isError) {
+    return (
+      <Alert tone="error">
+        <div className="flex items-center justify-between gap-3">
+          <span>{apiMessage(t, dash.error)}</span>
+          <Button variant="outline" size="sm" onClick={() => dash.refetch()}>{t('common.retry')}</Button>
+        </div>
+      </Alert>
+    );
+  }
   if (!dash.data) return <p className="text-sm text-ink-500">{t('common.loading')}</p>;
 
   const d = dash.data;
   const total = Object.values(d.counts_by_status).reduce((a, b) => a + (b ?? 0), 0);
-  const interviews = d.recent_events.filter((e) => {
-    const ts = new Date(e.occurred_at).getTime();
-    return INTERVIEW_EVENTS.has(e.event_type) && ts >= now && ts <= now + 7 * 86_400_000;
-  }).length;
-  const deadlines = d.upcoming.filter((u) => u.kind === 'deadline').length;
   const nowIso = new Date().toISOString();
   const upcomingGroups = (['deadline', 'next_action'] as const)
     .map((kind) => ({ kind, items: d.upcoming.filter((u) => u.kind === kind) }))
@@ -94,9 +99,13 @@ export function DashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard label={t('dashboard.kpi.in_progress')} value={groupCount(d, 'in_progress')} hint={t('dashboard.kpi.hint')} />
-        <KpiCard label={t('dashboard.kpi.deadlines')} value={deadlines} hint={t('dashboard.kpi.deadlines_hint')} />
-        <KpiCard label={t('dashboard.kpi.interviews')} value={interviews} />
-        <KpiCard label={t('dashboard.kpi.review')} value={0} hint={t('dashboard.kpi.review_hint')} highlight />
+        <KpiCard label={t('dashboard.kpi.deadlines')} value={d.deadlines_this_week} hint={t('dashboard.kpi.deadlines_hint')} />
+        <KpiCard label={t('dashboard.kpi.interviews')} value={d.interviews_next_7d} />
+        <KpiCard
+          label={t('dashboard.kpi.review')}
+          value={<span className="pending inline-block px-2 py-0.5 text-sm">—</span>}
+          hint={t('common.coming_soon')}
+        />
       </div>
 
       {total === 0 ? (

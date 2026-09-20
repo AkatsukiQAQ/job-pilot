@@ -127,7 +127,9 @@ export function SideNav() {
                   className={`${itemBase} cursor-default text-ink-400`}
                 >
                   <Icon size={18} />
-                  {collapsed ? null : (
+                  {collapsed ? (
+                    <span className="sr-only">{label}</span>
+                  ) : (
                     <>
                       <span>{label}</span>
                       <span className="ml-auto hidden rounded-full bg-cream-200 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-ink-500 md:inline">
@@ -151,7 +153,7 @@ export function SideNav() {
                       ].join(' ')}
                     >
                       <Icon size={18} />
-                      {collapsed ? null : <span>{label}</span>}
+                      {collapsed ? <span className="sr-only">{label}</span> : <span>{label}</span>}
                     </Link>
                   );
                 })()
