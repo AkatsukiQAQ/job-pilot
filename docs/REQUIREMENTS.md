@@ -136,7 +136,7 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 | 核心 | 卡片 / 详情的动作：收藏、加入比较、前往官方入口、记录备注、改应聘状态（经确认门）；面试条目可跳到对应申请并回填结果。侧栏固定入口：看板 / 岗位 / 面试 / 记忆收件箱 / 待复核 / 信息源。 |
 | 重要 | 面试日程：月份概览 + Agenda 列表，统一 JST（时区可配置），确认与待排期分开，无链接显示「待确认」。 |
 | 重要 | 并排比较视图、记忆收件箱、待复核队列、信息源健康状态条（正常 / 降级 / 需重新授权 / 不可用 / 已禁用）。 |
-| 重要 | 设计交付物：Claude Design 按 [design/claude-design-prompt.md](design/claude-design-prompt.md) 产出，落在 `docs/design/v1/`（A `tokens.css`、B `ia-and-flows.md` 已交付 2026-09-18；C 页面 HTML、D 组件规范、E 三语字典按 [design/claude-design-prompt-batch2.md](design/claude-design-prompt-batch2.md) 分批交付）。前端直接以 `v1/` 为实现依据，不再单独蒸馏 `DESIGN.md`（决策 D22）。 |
+| 重要 | 设计交付物：Claude Design 按 [design/claude-design-prompt.md](design/claude-design-prompt.md) 产出，落在 `docs/design/v1/`（A `tokens.css`、B `ia-and-flows.md` 已交付 2026-09-18；C 第 1 步四页 HTML、D 组件规范、E 三语字典按 [design/claude-design-prompt-batch2.md](design/claude-design-prompt-batch2.md) 已交付 2026-09-18，落 `v1/dashboard-v1/`；F `open-questions.md` 未交付）。前端直接以 `v1/` 为实现依据，不再单独蒸馏 `DESIGN.md`（决策 D22）。 |
 | 重要 | 视觉方向：沿用姊妹项目 MITA Finance 的设计语言（决策 D22）：暖纸 cream / ink 色板、琥珀点缀、手写体品牌字标与大标题、Fraunces 页面标题、14px 纸感卡片与暖棕阴影、黄色导航高亮、手绘 SVG 图表；对话为侧栏进入的全页工作台，**无右下角 FAB 浮层**（设计 B 已取消）；「待确认」用琥珀虚线占位；安静、轻盈、像求职手账而非 SaaS 后台；线性图标（Lucide）；固定侧栏；高信息密度但不拥挤。原型文档里的「深绿主色 / 薄荷绿选中态」方案作废。 |
 | 重要 | 默认语言跟随浏览器（zh / ja 命中即用，否则 en），可切换并记住（决策 D28）。 |
 | 重要 | 桌面优先、移动可用：看板与面试 Agenda 在 390 px 宽度可用；手机访问（如 Tailscale）有文档。 |
@@ -200,7 +200,7 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 
 ### 4.3 页面基线
 
-机会比较（首页）→ 岗位卡片 → 岗位详情 → 并排比较（≤3）→ 应聘进度追踪 → 面试日程 → 更新请求。这是原型的页面顺序；Mita JobPilot 自己的信息架构在 `docs/DESIGN.md` 中定义。
+机会比较（首页）→ 岗位卡片 → 岗位详情 → 并排比较（≤3）→ 应聘进度追踪 → 面试日程 → 更新请求。这是原型的页面顺序；Mita JobPilot 自己的信息架构在 `docs/design/v1/ia-and-flows.md` 中定义。
 
 ### 4.4 我们与原型的差异
 
@@ -335,9 +335,9 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 
 ### 7.3 下一步（2026-09-18 更新）
 
-已完成：Phase 0 骨架；追踪域 schema 与仓储（原 Phase 1 S1）；Google 只读连接器、多账号授权、Gmail API 层（原 S2，`1e95673`）；Google Cloud 项目与 Desktop OAuth 客户端已就位；Claude Design 交付物 A / B 已落 `docs/design/v1/`。
+已完成：Phase 0 骨架；追踪域 schema 与仓储（原 Phase 1 S1）；Google 只读连接器、多账号授权、Gmail API 层（原 S2，`1e95673`）；Google Cloud 项目与 Desktop OAuth 客户端已就位；Claude Design 交付物 A / B 已落 `docs/design/v1/`，C / D / E（第 1 步四页 HTML、组件规范、三语字典）已落 `docs/design/v1/dashboard-v1/`。
 
-进行中：**第 1 步 基础网页看板**（分支 `step1-board`），见 ROADMAP.md。之后按 D26 顺序：Gmail 接入 → LinkedIn 导出 → Calendar → 对话 → 岗位搜索 → 记忆 → 加固 → 发布与部署。
+进行中：**第 1 步 基础网页看板**（`step1-board` 已合入 `main`；对照设计稿校正视觉细节在分支 `feat/ui-reconstruction`，待用户验收），见 ROADMAP.md。之后按 D26 顺序：Gmail 接入 → LinkedIn 导出 → Calendar → 对话 → 岗位搜索 → 记忆 → 加固 → 发布与部署。
 
 ---
 
