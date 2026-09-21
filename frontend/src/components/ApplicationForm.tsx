@@ -18,6 +18,8 @@ interface Props {
   tz: string;
   tracks: Track[];
   statuses: Status[];
+  /** Initial track for mode 'add'; falls back to `tracks[0]`. */
+  defaultTrack?: Track;
   busy?: boolean;
   error?: ReactNode;
   onSubmit: (values: ApplicationFormValues) => void;
@@ -37,7 +39,13 @@ interface FormState {
   portal_url: string;
 }
 
-function initialState(mode: 'add' | 'edit', initial: ApplicationDetail | undefined, tz: string, tracks: Track[]): FormState {
+function initialState(
+  mode: 'add' | 'edit',
+  initial: ApplicationDetail | undefined,
+  tz: string,
+  tracks: Track[],
+  defaultTrack: Track | undefined,
+): FormState {
   if (mode === 'edit' && initial) {
     return {
       company_name: initial.company,
@@ -55,7 +63,7 @@ function initialState(mode: 'add' | 'edit', initial: ApplicationDetail | undefin
   return {
     company_name: '',
     role: '',
-    track: tracks[0] ?? 'other',
+    track: defaultTrack ?? tracks[0] ?? 'other',
     job_url: '',
     notes: '',
     initial_status: '',
@@ -66,9 +74,9 @@ function initialState(mode: 'add' | 'edit', initial: ApplicationDetail | undefin
   };
 }
 
-export function ApplicationForm({ mode, initial, tz, tracks, statuses, busy, error, onSubmit, onCancel }: Props) {
+export function ApplicationForm({ mode, initial, tz, tracks, statuses, defaultTrack, busy, error, onSubmit, onCancel }: Props) {
   const { t } = useT();
-  const [form, setForm] = useState<FormState>(() => initialState(mode, initial, tz, tracks));
+  const [form, setForm] = useState<FormState>(() => initialState(mode, initial, tz, tracks, defaultTrack));
   const [companyError, setCompanyError] = useState(false);
   const set = (k: keyof FormState) => (e: { target: { value: string } }) => {
     setForm((prev) => ({ ...prev, [k]: e.target.value }));
@@ -97,8 +105,11 @@ export function ApplicationForm({ mode, initial, tz, tracks, statuses, busy, err
 
   return (
     <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
+      {mode === 'edit' ? (
+        <h2 className="text-sm font-semibold text-ink-900 md:col-span-2">{t('application.edit.title')}</h2>
+      ) : null}
       <Field label={t('pipeline.form.company')}>
-        <input className={inputClass} value={form.company_name} onChange={set('company_name')} />
+        <input className={inputClass} autoFocus value={form.company_name} onChange={set('company_name')} />
       </Field>
       <Field label={`${t('pipeline.form.role')} (${t('common.optional')})`}>
         <input className={inputClass} value={form.role} onChange={set('role')} />
@@ -125,7 +136,7 @@ export function ApplicationForm({ mode, initial, tz, tracks, statuses, busy, err
       ) : null}
       {mode === 'edit' ? (
         <>
-          <Field label={`${t('application.form.deadline')} (${t('common.optional')})`}>
+          <Field label={`${t('application.form.deadline')} (${t('common.optional')})`} hint={t('time.tz_hint', { tz })}>
             <input className={inputClass} type="datetime-local" value={form.deadline_at} onChange={set('deadline_at')} />
           </Field>
           <Field label={`${t('application.form.next_action')} (${t('common.optional')})`}>
@@ -134,7 +145,6 @@ export function ApplicationForm({ mode, initial, tz, tracks, statuses, busy, err
           <Field label={`${t('application.form.next_action_due')} (${t('common.optional')})`}>
             <input className={inputClass} type="datetime-local" value={form.next_action_due} onChange={set('next_action_due')} />
           </Field>
-          <p className="text-xs text-ink-500">{t('time.tz_hint', { tz })}</p>
           <Field label={`${t('application.form.portal_url')} (${t('common.optional')})`}>
             <input className={inputClass} type="url" value={form.portal_url} onChange={set('portal_url')} />
           </Field>

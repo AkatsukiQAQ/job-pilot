@@ -71,7 +71,7 @@ export function CycleSwitcher() {
       ref={containerRef}
       className="relative"
       onBlur={(e) => {
-        if (!containerRef.current?.contains(e.relatedTarget as Node | null)) setOpen(false);
+        if (e.relatedTarget instanceof Node && !containerRef.current?.contains(e.relatedTarget)) setOpen(false);
       }}
     >
       <button
@@ -111,7 +111,7 @@ export function CycleSwitcher() {
                 <div className="text-[11px] text-ink-500">
                   {t(`kind.${c.kind}`)} · {c.region_pack} ·{' '}
                   <span className="font-mono">
-                    {c.starts_on ?? '—'} → {c.ends_on ?? t('settings.campaigns.ongoing')}
+                    {c.starts_on ?? t('common.none')} → {c.ends_on ?? t('settings.campaigns.ongoing')}
                   </span>{' '}
                   · {t('common.applications_count', { n: c.application_count })}
                 </div>

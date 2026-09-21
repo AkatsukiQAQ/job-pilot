@@ -51,6 +51,11 @@ export function fmtDateTime(iso: string, tz: string, lang: Lang): string {
   return `${fmtDate(iso, tz, lang)}${p.hour}:${p.minute} ${tzShort(iso, tz, lang)}`;
 }
 
+export function timeOfDay(iso: string, tz: string): 'morning' | 'afternoon' | 'evening' {
+  const hour = Number(parts(iso, tz).hour);
+  return hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+}
+
 /** Whole days between `iso` and now (positive = past). */
 export function daysAgo(iso: string): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);

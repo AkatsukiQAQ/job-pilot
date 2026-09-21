@@ -13,7 +13,7 @@ import {
   Users,
   XCircle,
 } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApplicationForm } from '@/components/ApplicationForm';
 import { Alert } from '@/components/ui/Alert';
@@ -31,18 +31,20 @@ import {
   useMeta,
   useSetStatus,
   useUpdateApplication,
+  useUpdateEvent,
 } from '@/hooks/useBoard';
 import { ApiError, apiMessage } from '@/lib/api';
 import { useCampaign } from '@/lib/campaign';
-import { fmtDate, fmtDateTime, nowInputInTz, zonedInputToIso } from '@/lib/format';
+import { fmtDate, fmtDateTime, isoToZonedInput, nowInputInTz, zonedInputToIso } from '@/lib/format';
 import { useT } from '@/lib/i18n';
+import { STATUS_ORDER } from '@/lib/status';
 import { useToast } from '@/lib/toast';
-import type { ApplicationDetail, Status } from '@/lib/types';
+import type { ApplicationDetail, EventIn, EventOut, EventType, Status } from '@/lib/types';
 
 const AUTO = '__auto__';
 const REVIEW_THRESHOLD = 0.7;
 
-const EVENT_ICON: Record<string, typeof Circle> = {
+const EVENT_ICON: Partial<Record<EventType, typeof Circle>> = {
   interview: Users,
   final_interview: Users,
   casual_interview: Users,
@@ -89,7 +91,7 @@ function StatusEditor({
         <Field label={t('application.change_status')}>
           <select className={inputClass} value={target} onChange={(e) => setTarget(e.target.value)}>
             <option value={AUTO}>{t('application.clear_status')} ({t(`status.${app.auto_status}`)})</option>
-            {(meta.data?.statuses ?? []).map((s) => (
+            {(meta.data?.statuses ?? []).filter((s) => s !== 'unrecorded').map((s) => (
               <option key={s} value={s}>{t(`status.${s}`)}</option>
             ))}
           </select>
@@ -103,13 +105,14 @@ function StatusEditor({
       {setStatus.isError ? <Alert tone="error">{apiMessage(t, setStatus.error)}</Alert> : null}
       <ConfirmCard
         title={`${t('application.confirm.change_to')} ${t(`status.${after}`)}`}
-        eyebrow={t('application.confirm.eyebrow')}
-        badge={<SourceBadge source="manual" />}
         before={<StatusChip status={app.status} />}
         after={<StatusChip status={after} />}
         hint={t('application.confirm.hint')}
         busy={setStatus.isPending}
-        onCancel={onCancel}
+        onCancel={() => {
+          setStatus.reset();
+          onCancel();
+        }}
         onConfirm={() =>
           setStatus.mutate(
             { user_status: target === AUTO ? null : after, excluded_reason: target === 'unsuitable' && reason ? reason : null },
@@ -121,49 +124,60 @@ function StatusEditor({
   );
 }
 
-function EventForm({ app, tz, onDone }: { app: ApplicationDetail; tz: string; onDone: () => void }) {
+function EventForm({
+  initial,
+  tz,
+  busy,
+  error,
+  onSubmit,
+  onCancel,
+}: {
+  initial?: EventOut;
+  tz: string;
+  busy?: boolean;
+  error?: ReactNode;
+  onSubmit: (body: EventIn) => void;
+  onCancel: () => void;
+}) {
   const { t } = useT();
   const meta = useMeta();
-  const toast = useToast();
-  const add = useAddEvent(app.application_id);
-  const [type, setType] = useState('interview');
-  const [when, setWhen] = useState(() => nowInputInTz(tz));
-  const [summary, setSummary] = useState('');
+  const [type, setType] = useState<EventType | ''>(initial?.event_type ?? meta.data?.event_types[0] ?? '');
+  const [when, setWhen] = useState(() => (initial ? isoToZonedInput(initial.occurred_at, tz) : nowInputInTz(tz)));
+  const [summary, setSummary] = useState(initial?.summary ?? '');
+  const [invalid, setInvalid] = useState(false);
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    add.mutate(
-      { event_type: type, occurred_at: zonedInputToIso(when, tz), summary: summary || null },
-      {
-        onSuccess: () => {
-          toast.show(t('toast.event_logged'));
-          onDone();
-        },
-      },
-    );
+    if (!type || !when) {
+      setInvalid(true);
+      return;
+    }
+    setInvalid(false);
+    onSubmit({ event_type: type, occurred_at: zonedInputToIso(when, tz), summary: summary.trim() || null });
   };
   return (
     <form onSubmit={submit} className="grid gap-3 md:grid-cols-3">
       <Field label={t('application.events.type')}>
-        <select className={inputClass} value={type} onChange={(e) => setType(e.target.value)}>
+        <select className={inputClass} value={type} onChange={(e) => setType(e.target.value as EventType)}>
           {(meta.data?.event_types ?? []).map((et) => (
-            <option key={et} value={et}>{t(`event.${et}` as never)}</option>
+            <option key={et} value={et}>{t(`event.${et}`)}</option>
           ))}
         </select>
       </Field>
       <Field label={t('application.events.time')}>
-        <input className={inputClass} type="datetime-local" required value={when} onChange={(e) => setWhen(e.target.value)} />
+        <input className={inputClass} type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
         <p className="mt-1 text-xs text-ink-500">{t('time.tz_hint', { tz })}</p>
       </Field>
       <Field label={`${t('application.events.summary')} (${t('common.optional')})`}>
         <input className={inputClass} maxLength={120} value={summary} onChange={(e) => setSummary(e.target.value)} />
       </Field>
-      {add.isError ? <div className="md:col-span-3"><Alert tone="error">{apiMessage(t, add.error)}</Alert></div> : null}
+      {invalid ? <div className="md:col-span-3"><Alert tone="error">{t('api.validation_failed')}</Alert></div> : null}
+      {error ? <div className="md:col-span-3">{error}</div> : null}
       <div className="flex items-center gap-2 text-xs text-ink-500 md:col-span-3">
         <SourceBadge source="manual" /> {t('common.source_note')}
       </div>
       <div className="flex justify-end gap-2 md:col-span-3">
-        <Button variant="ghost" onClick={onDone}>{t('common.cancel')}</Button>
-        <Button type="submit" disabled={add.isPending}>{t('common.add')}</Button>
+        <Button variant="ghost" onClick={onCancel}>{t('common.cancel')}</Button>
+        <Button type="submit" disabled={busy}>{initial ? t('common.save') : t('common.add')}</Button>
       </div>
     </form>
   );
@@ -172,11 +186,15 @@ function EventForm({ app, tz, onDone }: { app: ApplicationDetail; tz: string; on
 export function ApplicationPage() {
   const { t, lang } = useT();
   const id = Number(useParams().id);
+  const validId = Number.isInteger(id);
   const navigate = useNavigate();
   const meta = useMeta();
   const q = useApplication(id);
-  const { campaigns, current, select } = useCampaign();
+  const { campaigns, current, select, loaded } = useCampaign();
   const addNote = useAddEvent(id);
+  const addEvent = useAddEvent(id);
+  const updateEvent = useUpdateEvent(id);
+  const setStatus = useSetStatus(id);
   const toast = useToast();
   const update = useUpdateApplication(id);
   const del = useDeleteApplication(id);
@@ -189,13 +207,17 @@ export function ApplicationPage() {
   const [noteText, setNoteText] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deletingEventId, setDeletingEventId] = useState<number | null>(null);
-  const tz = meta.data?.tz ?? 'UTC';
+  const [editingEventId, setEditingEventId] = useState<number | null>(null);
+  const tz = current?.tz ?? meta.data?.tz ?? 'UTC';
+  const ready = Boolean(meta.data) && loaded;
 
+  const notFound = (
+    <EmptyState title={t('application.not_found')} action={<Link className="text-sm underline" to="/pipeline">{t('common.back')}</Link>} />
+  );
+  if (!validId) return notFound;
   if (q.isError) {
     const status = q.error instanceof ApiError ? q.error.status : undefined;
-    if (status === 404) {
-      return <EmptyState title={t('application.not_found')} action={<Link className="text-sm underline" to="/pipeline">{t('common.back')}</Link>} />;
-    }
+    if (status === 404) return notFound;
     return (
       <div className="space-y-3">
         <Alert tone="error">{apiMessage(t, q.error)}</Alert>
@@ -224,7 +246,7 @@ export function ApplicationPage() {
           action={
             owner ? (
               <Button size="sm" variant="outline" onClick={() => select(app.campaign_id)}>
-                {t('application.switch_to')} {owner.name}
+                {t('application.switch_to', { name: owner.name })}
               </Button>
             ) : undefined
           }
@@ -234,10 +256,21 @@ export function ApplicationPage() {
   }
 
   const campaignName = campaigns.find((c) => c.campaign_id === app.campaign_id)?.name ?? '';
-  const latest = app.events.length
-    ? app.events.reduce((a, b) => (a.occurred_at > b.occurred_at ? a : b))
-    : null;
   const portalUrl = app.portal_url ?? app.job_url;
+  const portalIsHttp = portalUrl !== null && /^https?:\/\//i.test(portalUrl);
+  const statusAdvanced =
+    app.user_status !== null && STATUS_ORDER.indexOf(app.auto_status) > STATUS_ORDER.indexOf(app.user_status);
+  const existingId =
+    update.error instanceof ApiError && update.error.code === 'application_exists'
+      ? update.error.extra?.existing_application_id
+      : undefined;
+
+  const toggleEvent = (eventId: number) => {
+    updateEvent.reset();
+    delEvent.reset();
+    setDeletingEventId(null);
+    setEditingEventId((prev) => (prev === eventId ? null : eventId));
+  };
 
   return (
     <div className="space-y-5">
@@ -253,7 +286,19 @@ export function ApplicationPage() {
               tracks={meta.data?.tracks ?? []}
               statuses={meta.data?.statuses ?? []}
               busy={update.isPending}
-              error={update.isError ? <Alert tone="error">{apiMessage(t, update.error)}</Alert> : undefined}
+              error={
+                update.isError ? (
+                  <Alert tone="error">
+                    {apiMessage(t, update.error)}
+                    {typeof existingId === 'number' ? (
+                      <>
+                        {' '}·{' '}
+                        <Link className="underline" to={`/pipeline/${existingId}`}>{t('application.duplicate.view_existing')}</Link>
+                      </>
+                    ) : null}
+                  </Alert>
+                ) : undefined
+              }
               onSubmit={(v) =>
                 update.mutate(v, {
                   onSuccess: () => {
@@ -262,7 +307,10 @@ export function ApplicationPage() {
                   },
                 })
               }
-              onCancel={() => setEditingFields(false)}
+              onCancel={() => {
+                update.reset();
+                setEditingFields(false);
+              }}
             />
           ) : (
             <div className="min-w-0">
@@ -287,6 +335,7 @@ export function ApplicationPage() {
                   <Button
                     size="sm"
                     variant="outline"
+                    disabled={!ready}
                     onClick={() => {
                       setEditing(true);
                       setConfirmedAt(null);
@@ -294,7 +343,15 @@ export function ApplicationPage() {
                   >
                     {t('application.change_status')}
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setEditingFields(true)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!ready}
+                    onClick={() => {
+                      update.reset();
+                      setEditingFields(true);
+                    }}
+                  >
                     {t('common.edit')}
                   </Button>
                 </>
@@ -313,26 +370,43 @@ export function ApplicationPage() {
               <div>{t('common.user_status')}: {app.user_status ? t(`status.${app.user_status}`) : t('common.none')}</div>
               <div>
                 {t('common.auto_status')}: {t(`status.${app.auto_status}`)}
-                {latest ? (
+                {app.last_event_type && app.last_event_at ? (
                   <>
-                    {' '}· {t('common.derived_from')} {t(`event.${latest.event_type}` as never)}{' '}
-                    <span className="font-mono">{fmtDate(latest.occurred_at, tz, lang)}</span>
+                    {' '}· {t('common.derived_from', { event: t(`event.${app.last_event_type}`) })}{' '}
+                    <span className="font-mono">{fmtDate(app.last_event_at, tz, lang)}</span>
                   </>
                 ) : null}
               </div>
             </div>
             {portalUrl ? (
-              <a
-                href={portalUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-ink-200 bg-transparent px-3 text-xs font-medium text-ink-900 transition-colors hover:bg-cream-100"
-              >
-                <ExternalLink size={14} /> {t('common.open_portal')}
-              </a>
+              portalIsHttp ? (
+                <a
+                  href={portalUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-ink-200 bg-transparent px-3 text-xs font-medium text-ink-900 transition-colors hover:bg-cream-100"
+                >
+                  <ExternalLink size={14} /> {t('common.open_portal')}
+                </a>
+              ) : (
+                <span className="break-all font-mono text-xs text-ink-500">{portalUrl}</span>
+              )
             ) : null}
           </div>
         </div>
+        {statusAdvanced ? (
+          <div className="mt-4">
+            <Alert tone="warning">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>{t('application.status_advanced', { status: t(`status.${app.auto_status}`) })}</span>
+                <Button size="sm" variant="outline" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ user_status: null })}>
+                  {t('application.clear_status')}
+                </Button>
+              </div>
+            </Alert>
+            {setStatus.isError ? <div className="mt-2"><Alert tone="error">{apiMessage(t, setStatus.error)}</Alert></div> : null}
+          </div>
+        ) : null}
         {editing ? (
           <div className="mt-4">
             <StatusEditor
@@ -353,79 +427,166 @@ export function ApplicationPage() {
           <PaperCard>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-ink-900">{t('application.events')}</h2>
-              {logging ? null : <Button size="sm" onClick={() => setLogging(true)}>{t('application.events.add')}</Button>}
+              {logging ? null : (
+                <Button size="sm" disabled={!ready} onClick={() => setLogging(true)}>{t('application.events.add')}</Button>
+              )}
             </div>
-            {logging ? <div className="mb-4"><EventForm app={app} tz={tz} onDone={() => setLogging(false)} /></div> : null}
+            {logging ? (
+              <div className="mb-4">
+                <EventForm
+                  tz={tz}
+                  busy={addEvent.isPending}
+                  error={addEvent.isError ? <Alert tone="error">{apiMessage(t, addEvent.error)}</Alert> : undefined}
+                  onSubmit={(body) =>
+                    addEvent.mutate(body, {
+                      onSuccess: () => {
+                        setLogging(false);
+                        toast.show(t('toast.event_logged'));
+                      },
+                    })
+                  }
+                  onCancel={() => {
+                    addEvent.reset();
+                    setLogging(false);
+                  }}
+                />
+              </div>
+            ) : null}
             {app.events.length === 0 ? (
               <p className="text-sm text-ink-500">{t('application.events.empty')}</p>
             ) : (
-              <ol className="relative ml-3 space-y-4 border-l border-dashed border-cream-400 pl-6 text-sm">
+              <ol className="relative ml-3 space-y-2 border-l border-dashed border-cream-400 pl-6 text-sm">
                 {[...app.events].reverse().map((e) => {
                   const Icon = EVENT_ICON[e.event_type] ?? Circle;
                   const needsReview = !e.user_confirmed && e.confidence < REVIEW_THRESHOLD && !accepted.has(e.event_id);
+                  const expanded = editingEventId === e.event_id;
                   return (
                     <li key={e.event_id} className="relative">
                       <span
                         aria-hidden
-                        className="absolute -left-[37px] top-0.5 flex h-6 w-6 items-center justify-center rounded-full border border-ink-200 bg-cream-50 text-ink-700"
+                        className="absolute -left-[37px] top-2.5 flex h-6 w-6 items-center justify-center rounded-full border border-ink-200 bg-cream-50 text-ink-700"
                       >
                         <Icon size={12} />
                       </span>
-                      <div className="flex items-start gap-3">
-                        <span className="w-52 shrink-0 font-mono text-xs text-ink-500">{fmtDateTime(e.occurred_at, tz, lang)}</span>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-ink-900">{t(`event.${e.event_type}` as never)}</div>
-                          {e.summary ? <div className="text-xs text-ink-500">{e.summary}</div> : null}
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={expanded}
+                        aria-label={t('application.events.edit')}
+                        className="-mx-3 cursor-pointer rounded-xl px-3 py-2 transition-colors hover:bg-cream-100 focus-visible:outline-2 focus-visible:outline-cream-500"
+                        onClick={() => toggleEvent(e.event_id)}
+                        onKeyDown={(ev) => {
+                          if (ev.target !== ev.currentTarget) return;
+                          if (ev.key === 'Enter' || ev.key === ' ') {
+                            ev.preventDefault();
+                            toggleEvent(e.event_id);
+                          }
+                        }}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="w-52 shrink-0 font-mono text-xs text-ink-500">{fmtDateTime(e.occurred_at, tz, lang)}</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-ink-900">{t(`event.${e.event_type}`)}</div>
+                            {e.summary ? <div className="text-xs text-ink-500">{e.summary}</div> : null}
+                          </div>
+                          <SourceBadge source={e.source} />
                         </div>
-                        <SourceBadge source={e.source} />
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 w-6 p-0"
-                          aria-label={t('application.events.delete')}
-                          onClick={() => setDeletingEventId(e.event_id)}
-                        >
-                          <Trash2 size={14} />
-                        </Button>
                       </div>
-                      {deletingEventId === e.event_id ? (
-                        <div className="mt-2">
-                          <ConfirmCard
-                            title={t('application.events.delete_title')}
-                            hint={t('application.events.delete_hint')}
-                            confirmVariant="danger"
-                            confirmLabel={t('common.delete')}
-                            busy={delEvent.isPending}
-                            onCancel={() => setDeletingEventId(null)}
-                            onConfirm={() =>
-                              delEvent.mutate(e.event_id, {
-                                onSuccess: () => {
-                                  setDeletingEventId(null);
-                                  toast.show(t('toast.event_deleted'));
+                      {needsReview ? (
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
+                            <span
+                              className="chip inline-flex items-center rounded-full border px-2 py-0.5 font-semibold"
+                              style={{ color: 'var(--color-review-fg)', background: 'var(--color-review-bg)', borderColor: 'var(--color-review-border)' }}
+                            >
+                              {t('application.events.review_tag')}
+                            </span>
+                            <span className="text-ink-500">{t('application.events.confidence')}: {Math.round(e.confidence * 100)}%</span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                setAccepted((s) => new Set(s).add(e.event_id));
+                              }}
+                            >
+                              {t('application.events.accept')}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                if (!expanded) toggleEvent(e.event_id);
+                              }}
+                            >
+                              {t('application.events.correct')}
+                            </Button>
+                          </div>
+                        ) : (e.user_confirmed || accepted.has(e.event_id)) && e.confidence < REVIEW_THRESHOLD ? (
+                          <div className="mt-1.5 text-xs text-ink-500">{t('application.events.confirmed_by_user')}</div>
+                        ) : null}
+                      {expanded ? (
+                        <div className="mt-2 space-y-3">
+                          <EventForm
+                            initial={e}
+                            tz={tz}
+                            busy={updateEvent.isPending}
+                            error={updateEvent.isError ? <Alert tone="error">{apiMessage(t, updateEvent.error)}</Alert> : undefined}
+                            onSubmit={(body) =>
+                              updateEvent.mutate(
+                                { eventId: e.event_id, body },
+                                {
+                                  onSuccess: () => {
+                                    setEditingEventId(null);
+                                    toast.show(t('toast.event_updated'));
+                                  },
                                 },
-                              })
+                              )
                             }
+                            onCancel={() => {
+                              updateEvent.reset();
+                              setEditingEventId(null);
+                            }}
                           />
-                          {delEvent.isError ? <div className="mt-2"><Alert tone="error">{apiMessage(t, delEvent.error)}</Alert></div> : null}
+                          {deletingEventId === e.event_id ? (
+                            <div>
+                              <ConfirmCard
+                                title={t('application.events.delete_title')}
+                                hint={t('application.events.delete_hint')}
+                                confirmVariant="danger"
+                                confirmLabel={t('common.delete')}
+                                busy={delEvent.isPending}
+                                onCancel={() => {
+                                  delEvent.reset();
+                                  setDeletingEventId(null);
+                                }}
+                                onConfirm={() =>
+                                  delEvent.mutate(e.event_id, {
+                                    onSuccess: () => {
+                                      setDeletingEventId(null);
+                                      setEditingEventId(null);
+                                      toast.show(t('toast.event_deleted'));
+                                    },
+                                  })
+                                }
+                              />
+                              {delEvent.isError ? <div className="mt-2"><Alert tone="error">{apiMessage(t, delEvent.error)}</Alert></div> : null}
+                            </div>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-neg-500"
+                              leadingIcon={<Trash2 size={14} />}
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                setDeletingEventId(e.event_id);
+                              }}
+                            >
+                              {t('common.delete')}
+                            </Button>
+                          )}
                         </div>
-                      ) : needsReview ? (
-                        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
-                          <span
-                            className="chip inline-flex items-center rounded-full border px-2 py-0.5 font-semibold"
-                            style={{ color: 'var(--color-review-fg)', background: 'var(--color-review-bg)', borderColor: 'var(--color-review-border)' }}
-                          >
-                            {t('application.events.review_tag')}
-                          </span>
-                          <span className="text-ink-500">{t('application.events.confidence')}: {Math.round(e.confidence * 100)}%</span>
-                          <Button size="sm" variant="ghost" onClick={() => setAccepted((s) => new Set(s).add(e.event_id))}>
-                            {t('application.events.accept')}
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => setLogging(true)}>
-                            {t('application.events.correct')}
-                          </Button>
-                        </div>
-                      ) : (e.user_confirmed || accepted.has(e.event_id)) && e.confidence < REVIEW_THRESHOLD ? (
-                        <div className="mt-1.5 text-xs text-ink-500">{t('application.events.confirmed_by_user')}</div>
                       ) : null}
                     </li>
                   );
@@ -485,11 +646,13 @@ export function ApplicationPage() {
             <ConfirmCard
               title={t('application.delete.title')}
               hint={t('application.delete.hint', { n: app.events.length })}
-              badge={<SourceBadge source="manual" />}
               confirmVariant="danger"
               confirmLabel={t('common.delete')}
               busy={del.isPending}
-              onCancel={() => setConfirmingDelete(false)}
+              onCancel={() => {
+                del.reset();
+                setConfirmingDelete(false);
+              }}
               onConfirm={() =>
                 del.mutate(undefined, {
                   onSuccess: () => {
@@ -503,7 +666,7 @@ export function ApplicationPage() {
           </div>
         ) : (
           <div className="mt-3">
-            <Button variant="danger" size="sm" onClick={() => setConfirmingDelete(true)}>{t('common.delete')}</Button>
+            <Button variant="ghost" size="sm" className="text-neg-500" onClick={() => setConfirmingDelete(true)}>{t('common.delete')}</Button>
           </div>
         )}
       </PaperCard>

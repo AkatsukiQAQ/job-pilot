@@ -1,6 +1,6 @@
-import { ArrowUpRight, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ApplicationForm } from '@/components/ApplicationForm';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Field, inputClass } from '@/components/ui/Field';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PaperCard } from '@/components/ui/PaperCard';
+import { Segmented } from '@/components/ui/Segmented';
 import { useApplications, useCreateApplication, useMeta } from '@/hooks/useBoard';
 import { ApiError, apiMessage } from '@/lib/api';
 import { useCampaign } from '@/lib/campaign';
@@ -16,19 +17,19 @@ import { daysAgo, fmtDateTime } from '@/lib/format';
 import { useT } from '@/lib/i18n';
 import { groupOf, STATUS_GROUPS, STATUS_ORDER, type StatusGroup } from '@/lib/status';
 import { useToast } from '@/lib/toast';
-import type { ApplicationRow } from '@/lib/types';
+import type { ApplicationRow, Track } from '@/lib/types';
 
 const ALL_TRACKS = 'all';
 const ALL_GROUPS = 'all';
 const GROUP_KEYS = Object.keys(STATUS_GROUPS) as StatusGroup[];
 type GroupFilter = StatusGroup | typeof ALL_GROUPS;
 
-function AddForm({ campaignId, onDone }: { campaignId: number; onDone: () => void }) {
+function AddForm({ campaignId, defaultTrack, tz, onCancel }: { campaignId: number; defaultTrack: Track; tz: string; onCancel: () => void }) {
   const { t } = useT();
   const meta = useMeta();
   const create = useCreateApplication();
-  const navigate = useNavigate();
   const toast = useToast();
+  const [formKey, setFormKey] = useState(0);
 
   const err = create.error;
   const duplicateId =
@@ -39,10 +40,12 @@ function AddForm({ campaignId, onDone }: { campaignId: number; onDone: () => voi
   return (
     <PaperCard>
       <ApplicationForm
+        key={formKey}
         mode="add"
-        tz={meta.data?.tz ?? 'UTC'}
+        tz={tz}
         tracks={meta.data?.tracks ?? []}
         statuses={meta.data?.statuses ?? []}
+        defaultTrack={defaultTrack}
         busy={create.isPending}
         error={
           create.isError ? (
@@ -70,14 +73,13 @@ function AddForm({ campaignId, onDone }: { campaignId: number; onDone: () => voi
             },
             {
               onSuccess: (detail) => {
-                onDone();
-                toast.show(t('toast.application_added'));
-                navigate(`/pipeline/${detail.application_id}`);
+                setFormKey((k) => k + 1);
+                toast.show(t('toast.application_added'), { to: `/pipeline/${detail.application_id}`, toLabel: t('common.open') });
               },
             },
           )
         }
-        onCancel={onDone}
+        onCancel={onCancel}
       />
     </PaperCard>
   );
@@ -85,9 +87,17 @@ function AddForm({ campaignId, onDone }: { campaignId: number; onDone: () => voi
 
 function Row({ row, tz }: { row: ApplicationRow; tz: string }) {
   const { t, lang } = useT();
+  const navigate = useNavigate();
   const next = row.deadline_at ?? row.next_action_due;
   return (
-    <tr className={row.is_ghosted ? 'ghosted' : ''}>
+    <tr
+      onClick={(e) => {
+        if ((e.target as Element).closest('a,button,input,select')) return;
+        if (window.getSelection()?.toString()) return;
+        navigate(`/pipeline/${row.application_id}`);
+      }}
+      className={[row.is_ghosted ? 'ghosted' : '', 'cursor-pointer transition-colors hover:bg-cream-50/80 focus-within:bg-cream-50/80'].join(' ')}
+    >
       <td className="px-4 py-3 text-ink-900">
         <Link className="font-medium hover:underline" to={`/pipeline/${row.application_id}`}>{row.company}</Link>
         {row.is_ghosted && row.last_event_at ? (
@@ -101,7 +111,7 @@ function Row({ row, tz }: { row: ApplicationRow; tz: string }) {
       <td className="px-4 py-3 text-ink-700">
         {row.last_event_type ? (
           <>
-            {t(`event.${row.last_event_type}` as never)}
+            {t(`event.${row.last_event_type}`)}
             {row.last_event_at ? <div className="font-mono text-[11px] text-ink-500">{fmtDateTime(row.last_event_at, tz, lang)}</div> : null}
           </>
         ) : t('common.none')}
@@ -111,16 +121,6 @@ function Row({ row, tz }: { row: ApplicationRow; tz: string }) {
         {row.next_action ? <div className="font-sans text-[11px] text-ink-500">{row.next_action}</div> : null}
       </td>
       <td className="px-4 py-3"><SourceBadge source="manual" /></td>
-      <td className="px-4 py-3">
-        <Link
-          to={`/pipeline/${row.application_id}`}
-          aria-label={t('common.open')}
-          title={t('common.open')}
-          className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-ink-500 hover:bg-cream-100"
-        >
-          <ArrowUpRight size={14} />
-        </Link>
-      </td>
     </tr>
   );
 }
@@ -131,16 +131,31 @@ export function PipelinePage() {
   const meta = useMeta();
   const apps = useApplications(current?.campaign_id ?? null);
   const [adding, setAdding] = useState(false);
-  const [track, setTrack] = useState<string>(ALL_TRACKS);
-  const [keyword, setKeyword] = useState('');
-  const [activeGroup, setActiveGroup] = useState<GroupFilter>(ALL_GROUPS);
-  const tz = meta.data?.tz ?? 'UTC';
+  const [params, setParams] = useSearchParams();
+  const tz = current?.tz ?? meta.data?.tz ?? 'UTC';
+
+  const groupParam = params.get('group');
+  const activeGroup: GroupFilter = GROUP_KEYS.includes(groupParam as StatusGroup) ? (groupParam as StatusGroup) : ALL_GROUPS;
+  const track = params.get('track') ?? ALL_TRACKS;
+  const keyword = params.get('q') ?? '';
+  const setParam = (key: string, value: string, def: string) =>
+    setParams(
+      (prev) => {
+        if (value === def) prev.delete(key);
+        else prev.set(key, value);
+        return prev;
+      },
+      { replace: true },
+    );
+  const setGroup = (g: GroupFilter) => setParam('group', g, ALL_GROUPS);
+  const setTrack = (v: string) => setParam('track', v, ALL_TRACKS);
+  const setKeyword = (v: string) => setParam('q', v, '');
 
   if (loaded && !current) {
     return <EmptyState title={t('settings.campaigns.empty')} action={<Link className="text-sm underline" to="/settings">{t('nav.settings')}</Link>} />;
   }
   const rows = apps.data ?? [];
-  const cols: string[] = ['company', 'role', 'status', 'last_event', 'next', 'source', 'open'];
+  const cols = ['company', 'role', 'status', 'last_event', 'next', 'source'] as const;
   const keywordLower = keyword.trim().toLowerCase();
   const filteredRows = rows.filter(
     (r) =>
@@ -148,7 +163,7 @@ export function PipelinePage() {
       (track === ALL_TRACKS || r.track === track) &&
       (!keywordLower || `${r.company} ${r.role ?? ''}`.toLowerCase().includes(keywordLower)),
   );
-  const clearFilters = () => { setTrack(ALL_TRACKS); setKeyword(''); setActiveGroup(ALL_GROUPS); };
+  const clearFilters = () => setParams({}, { replace: true });
   const restStatuses = STATUS_ORDER.filter(
     (s) => (activeGroup === ALL_GROUPS || groupOf(s) === activeGroup) && !filteredRows.some((r) => r.status === s),
   );
@@ -165,12 +180,14 @@ export function PipelinePage() {
           </Button>
         }
       />
-      {adding && current ? <AddForm campaignId={current.campaign_id} onDone={() => setAdding(false)} /> : null}
+      {adding && current ? (
+        <AddForm campaignId={current.campaign_id} defaultTrack={current.kind} tz={tz} onCancel={() => setAdding(false)} />
+      ) : null}
       {apps.isLoading ? <p className="text-sm text-ink-500">{t('common.loading')}</p> : null}
       {apps.isError ? (
         <Alert tone="error">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span>{t('common.error', { message: apps.error.message })}</span>
+            <span>{apiMessage(t, apps.error)}</span>
             <Button variant="outline" size="sm" onClick={() => apps.refetch()}>{t('common.retry')}</Button>
           </div>
         </Alert>
@@ -179,26 +196,19 @@ export function PipelinePage() {
         <EmptyState title={t('pipeline.empty')} />
       ) : apps.isSuccess ? (
         <>
-          <div role="group" aria-label={t('pipeline.col.status')} className="inline-flex rounded-full border border-cream-200 bg-cream-100 p-1 text-sm">
-            {([ALL_GROUPS, ...GROUP_KEYS] as GroupFilter[]).map((g) => {
-              const count = g === ALL_GROUPS ? rows.length : rows.filter((r) => groupOf(r.status) === g).length;
-              return (
-                <button
-                  key={g}
-                  type="button"
-                  aria-pressed={activeGroup === g}
-                  onClick={() => setActiveGroup(g)}
-                  className={[
-                    'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-medium transition-colors',
-                    activeGroup === g ? 'bg-cream-300 text-ink-900' : 'text-ink-500 hover:text-ink-700',
-                  ].join(' ')}
-                >
-                  {g === ALL_GROUPS ? t('pipeline.filter.all') : t(`group.${g}`)}
-                  <span className="font-mono text-[11px] text-ink-500">{count}</span>
-                </button>
-              );
-            })}
-          </div>
+          <Segmented<GroupFilter>
+            value={activeGroup}
+            onChange={setGroup}
+            ariaLabel={t('pipeline.col.status')}
+            options={[
+              { value: ALL_GROUPS, label: t('pipeline.filter.all'), count: rows.length },
+              ...GROUP_KEYS.map((g) => ({
+                value: g,
+                label: t(`group.${g}`),
+                count: rows.filter((r) => groupOf(r.status) === g).length,
+              })),
+            ]}
+          />
           <div className="flex flex-wrap items-end gap-3">
             <Field label={t('pipeline.filter.track')}>
               <select className={inputClass} value={track} onChange={(e) => setTrack(e.target.value)}>
@@ -230,13 +240,9 @@ export function PipelinePage() {
               <table className="w-full text-sm">
                 <thead className="bg-cream-200/60 text-left text-xs uppercase tracking-wide text-ink-500">
                   <tr>
-                    {cols.map((c) =>
-                      c === 'open' ? (
-                        <th key={c} className="px-4 py-2 font-semibold" aria-label={t('common.open')} />
-                      ) : (
-                        <th key={c} className="px-4 py-2 font-semibold">{t(`pipeline.col.${c}` as never)}</th>
-                      ),
-                    )}
+                    {cols.map((c) => (
+                      <th key={c} className="px-4 py-2 font-semibold">{t(`pipeline.col.${c}`)}</th>
+                    ))}
                   </tr>
                 </thead>
                 {STATUS_ORDER.map((status) => {
@@ -246,7 +252,14 @@ export function PipelinePage() {
                     <tbody key={status} className="divide-y divide-cream-200 border-t border-cream-200">
                       <tr className="bg-cream-50/60">
                         <td colSpan={cols.length} className="px-4 py-1.5">
-                          <span className="inline-flex items-center gap-2"><StatusChip status={status} /><span className="font-mono text-xs text-ink-500">{group.length}</span></span>
+                          <button
+                            type="button"
+                            onClick={() => setGroup(groupOf(status))}
+                            className="-mx-1 inline-flex items-center gap-2 rounded-lg px-1 hover:bg-cream-100"
+                          >
+                            <StatusChip status={status} />
+                            <span className="font-mono text-xs text-ink-500">{group.length}</span>
+                          </button>
                         </td>
                       </tr>
                       {group.map((row) => <Row key={row.application_id} row={row} tz={tz} />)}

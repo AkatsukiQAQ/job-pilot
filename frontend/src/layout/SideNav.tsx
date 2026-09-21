@@ -121,8 +121,11 @@ export function SideNav() {
               const Icon = item.icon;
               const label = t(item.label);
               return item.soon ? (
-                <span
+                <button
                   key={item.to}
+                  type="button"
+                  aria-disabled="true"
+                  aria-label={`${label} · ${t('nav.soon')}`}
                   title={`${label} · ${t('nav.soon')}`}
                   className={`${itemBase} cursor-default text-ink-400`}
                 >
@@ -137,7 +140,7 @@ export function SideNav() {
                       </span>
                     </>
                   )}
-                </span>
+                </button>
               ) : (
                 (() => {
                   const active = isActive(item, location.pathname, tab);

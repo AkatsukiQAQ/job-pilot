@@ -1,4 +1,4 @@
-// Small labelled marks: status chip (12 states), source badge, generic pill, "pending" placeholder.
+// Small labelled marks: status chip (12 states), source badge, generic pill.
 import { Calendar, FileArchive, FileInput, Mail, MessageCircle, PencilLine } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useT } from '@/lib/i18n';
@@ -27,7 +27,10 @@ export function StatusChip({
   autoStatus?: Status;
 }) {
   const { t } = useT();
-  const overridden = autoStatus !== undefined && autoStatus !== status;
+  const overriddenTitle =
+    autoStatus !== undefined && autoStatus !== status
+      ? `${t('common.overridden')} · ${t('common.overridden.hint', { status: t(`status.${autoStatus}`) })}`
+      : null;
   return (
     <span className="inline-flex items-center gap-1.5">
       <span
@@ -36,9 +39,12 @@ export function StatusChip({
       >
         {t(`status.${status}`)}
       </span>
-      {overridden ? (
+      {overriddenTitle ? (
         <span
-          title={`${t('common.overridden')} · ${t('common.overridden.hint', { status: t(`status.${autoStatus}`) })}`}
+          tabIndex={0}
+          role="img"
+          aria-label={overriddenTitle}
+          title={overriddenTitle}
           className="inline-flex h-5 w-5 items-center justify-center rounded-full"
           style={{ background: 'var(--color-override-bg)', color: 'var(--color-override-fg)' }}
         >
@@ -71,10 +77,4 @@ export function SourceBadge({ source }: { source: Source }) {
       {t(`source.${source}`)}
     </span>
   );
-}
-
-/** "待确认" placeholder for missing information; never a status. */
-export function Pending() {
-  const { t } = useT();
-  return <span className="pending inline-block px-2 py-0.5 text-xs">{t('common.pending')}</span>;
 }
