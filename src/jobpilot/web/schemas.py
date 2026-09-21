@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AwareDatetime, BaseModel, Field, field_validator
 
 from jobpilot.domain import (
     ApplicationStatus,
@@ -58,6 +58,7 @@ class CampaignOut(BaseModel):
     ends_on: date | None
     is_active: bool
     application_count: int
+    tz: str  # region-pack default, overridden by JOBPILOT_TZ
 
 
 class ApplicationIn(BaseModel):
@@ -90,9 +91,9 @@ class ApplicationPatch(BaseModel):
     job_url: str | None = None
     notes: str | None = None
     portal_url: str | None = None
-    deadline_at: datetime | None = None
+    deadline_at: AwareDatetime | None = None
     next_action: str | None = Field(default=None, max_length=120)
-    next_action_due: datetime | None = None
+    next_action_due: AwareDatetime | None = None
 
     @field_validator("company_name")
     @classmethod
@@ -115,7 +116,7 @@ class StatusIn(BaseModel):
 
 class EventIn(BaseModel):
     event_type: EventType
-    occurred_at: datetime
+    occurred_at: AwareDatetime
     summary: str | None = Field(default=None, max_length=120)
 
 
@@ -164,6 +165,7 @@ class UpcomingItem(BaseModel):
     kind: str  # 'deadline' | 'next_action'
     due: datetime
     label: str | None  # next_action text when kind == 'next_action'
+    overdue: bool
 
 
 class RecentEvent(BaseModel):

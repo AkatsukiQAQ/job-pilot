@@ -9,6 +9,7 @@ import sqlite3
 from datetime import datetime
 
 from jobpilot.domain import (
+    STATUS_RANK,
     Application,
     ApplicationCreate,
     ApplicationStatus,
@@ -22,19 +23,30 @@ from jobpilot.domain import (
 )
 from jobpilot.services import status
 from jobpilot.store.db import transaction
-from jobpilot.store.repo import ApplicationRepo, CampaignRepo, CompanyRepo, EventRepo
+from jobpilot.store.repo import ApplicationRepo, AutoUpdate, CampaignRepo, CompanyRepo, EventRepo
 from jobpilot.textutil import nfkc, normalize_role
 
 SOURCE = "web"
 
 
-def _resolve_company(conn: sqlite3.Connection, company_name: str) -> Company:
+class ApplicationConflict(Exception):
+    """An edit would collide with another application's natural key."""
+
+    def __init__(self, existing_id: int) -> None:
+        super().__init__(existing_id)
+        self.existing_id = existing_id
+
+
+def _resolve_company(conn: sqlite3.Connection, company_name: str, *, rename: bool) -> Company:
     name = company_name.strip()
     norm = nfkc(name).casefold()
     companies = CompanyRepo(conn)
-    return companies.get_by_norm(norm) or companies.add(
-        CompanyCreate(name=name, name_norm=norm), actor="user", source=SOURCE
-    )
+    company = companies.get_by_norm(norm)
+    if company is None:
+        return companies.add(CompanyCreate(name=name, name_norm=norm), actor="user", source=SOURCE)
+    if rename and company.name != name:
+        return companies.rename(company.company_id, name, actor="user", source=SOURCE)
+    return company
 
 
 def add_application(
@@ -55,7 +67,7 @@ def add_application(
     Returns (application, created). Fuzzy company matching arrives with Gmail ingestion.
     """
     with transaction(conn):
-        company = _resolve_company(conn, company_name)
+        company = _resolve_company(conn, company_name, rename=False)
         apps = ApplicationRepo(conn)
         role_norm = normalize_role(role)
         existing = apps.find_natural(campaign_id, company.company_id, track.value, role_norm)
@@ -99,27 +111,44 @@ def update_application(
 ) -> Application:
     """User-initiated edit of an existing application's fields.
 
-    A natural-key collision (same campaign/company/track/role as another application)
-    propagates as sqlite3.IntegrityError.
+    A company spelled differently is renamed (display name only). A natural-key collision with
+    another application raises ApplicationConflict; an unknown id raises KeyError.
     """
     with transaction(conn):
-        company = _resolve_company(conn, company_name)
+        apps = ApplicationRepo(conn)
+        current = apps.get(application_id)
+        if current is None:
+            raise KeyError(application_id)
+        company = _resolve_company(conn, company_name, rename=True)
         role_norm = normalize_role(role)
-        return ApplicationRepo(conn).update_fields(
-            application_id,
-            company_id=company.company_id,
-            role=role,
-            role_norm=role_norm,
-            track=track,
-            job_url=job_url,
-            notes=notes,
-            portal_url=portal_url,
-            deadline_at=deadline_at,
-            next_action=next_action,
-            next_action_due=next_action_due,
-            actor="user",
-            source=SOURCE,
-        )
+        try:
+            return apps.update_fields(
+                application_id,
+                company_id=company.company_id,
+                role=role,
+                role_norm=role_norm,
+                track=track,
+                job_url=job_url,
+                notes=notes,
+                portal_url=portal_url,
+                deadline_at=deadline_at,
+                next_action=next_action,
+                next_action_due=next_action_due,
+                actor="user",
+                source=SOURCE,
+            )
+        except sqlite3.IntegrityError as e:
+            other = apps.find_natural(
+                current.campaign_id, company.company_id, track.value, role_norm
+            )
+            if other is None:
+                raise
+            raise ApplicationConflict(other.application_id) from e
+
+
+def clear_next_action(conn: sqlite3.Connection, *, application_id: int) -> Application:
+    """Mark the next action done. Raises KeyError if unknown."""
+    return ApplicationRepo(conn).clear_next_action(application_id, actor="user", source=SOURCE)
 
 
 def delete_application(conn: sqlite3.Connection, *, application_id: int) -> int:
@@ -139,7 +168,31 @@ def delete_event(conn: sqlite3.Connection, *, event_id: int) -> Application:
         if event is None:
             raise KeyError(event_id)
         EventRepo(conn).delete(event_id, actor="user", source=SOURCE)
-        return status.recompute(conn, event.application_id)
+        return status.recompute(conn, event.application_id, source=SOURCE)
+
+
+def update_event(
+    conn: sqlite3.Connection,
+    *,
+    event_id: int,
+    event_type: EventType,
+    occurred_at: datetime,
+    summary: str | None = None,
+) -> Application:
+    """Edit one event and re-derive the owning application's status.
+
+    Raises KeyError if unknown; a UNIQUE collision propagates as sqlite3.IntegrityError.
+    """
+    with transaction(conn):
+        event = EventRepo(conn).update(
+            event_id,
+            event_type=event_type,
+            occurred_at=occurred_at,
+            summary=summary,
+            actor="user",
+            source=SOURCE,
+        )
+        return status.recompute(conn, event.application_id, source=SOURCE)
 
 
 def log_event(
@@ -153,9 +206,14 @@ def log_event(
     """Append a user-confirmed event and re-derive the automatic status.
 
     Returns (application, inserted); ``inserted`` is False when the identical event already
-    existed (recompute still runs, though it is a no-op in that case).
+    existed, in which case nothing is recomputed or written. When the ledger now implies a
+    higher status than before, the pending next action is considered done and cleared.
     """
     with transaction(conn):
+        apps = ApplicationRepo(conn)
+        before = apps.get(application_id)
+        if before is None:
+            raise KeyError(application_id)
         _, inserted = EventRepo(conn).add_idempotent(
             EventCreate(
                 application_id=application_id,
@@ -168,7 +226,17 @@ def log_event(
             actor="user",
             source=SOURCE,
         )
-        return status.recompute(conn, application_id), inserted
+        if not inserted:
+            return before, False
+        app = status.recompute(conn, application_id, source=SOURCE)
+        if STATUS_RANK.get(app.auto_status, 0) > STATUS_RANK.get(before.auto_status, 0):
+            app = apps.update_auto(
+                application_id,
+                AutoUpdate(clear_next_action=True),
+                actor="system",
+                source=SOURCE,
+            )
+        return app, True
 
 
 def set_status(
@@ -186,11 +254,14 @@ def set_status(
 
 __all__ = [
     "SOURCE",
+    "ApplicationConflict",
     "add_application",
+    "clear_next_action",
     "delete_application",
     "delete_campaign",
     "delete_event",
     "log_event",
     "set_status",
     "update_application",
+    "update_event",
 ]

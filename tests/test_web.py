@@ -15,7 +15,8 @@ from jobpilot.web.app import create_app
 
 @pytest.fixture
 def client(settings: Settings, tmp_path: Path) -> Iterator[TestClient]:
-    with TestClient(create_app(settings, dist_dir=tmp_path / "no-dist")) as c:
+    app = create_app(settings, dist_dir=tmp_path / "no-dist")
+    with TestClient(app, base_url="http://127.0.0.1") as c:
         yield c
 
 
@@ -403,10 +404,25 @@ def test_dashboard_windows(client: TestClient) -> None:
         json={"event_type": "interview", "occurred_at": (now + timedelta(days=3)).isoformat()},
     )
 
+    stale_id = client.post(
+        "/api/applications",
+        json={"campaign_id": campaign_id, "company_name": "Delta", "track": "other"},
+    ).json()["application_id"]
+    client.patch(
+        f"/api/applications/{stale_id}",
+        json={
+            "company_name": "Delta",
+            "track": "other",
+            "deadline_at": (now - timedelta(days=20)).isoformat(),
+        },
+    )
+
     dash = client.get(f"/api/campaigns/{campaign_id}/dashboard").json()
-    upcoming_ids = {u["application_id"] for u in dash["upcoming"]}
-    assert in_week_id in upcoming_ids
-    assert overdue_id not in upcoming_ids
+    by_id = {u["application_id"]: u for u in dash["upcoming"]}
+    assert by_id[in_week_id]["overdue"] is False
+    assert by_id[overdue_id]["overdue"] is True  # within the 14-day lookback
+    assert stale_id not in by_id
+    assert [u["application_id"] for u in dash["upcoming"]] == [overdue_id, in_week_id]
     assert dash["interviews_next_7d"] == 1
 
     tz = ZoneInfo("UTC")  # global_en's default_tz
@@ -417,3 +433,299 @@ def test_dashboard_windows(client: TestClient) -> None:
     )
     expected = 1 if now + timedelta(days=2) <= week_end else 0
     assert dash["deadlines_this_week"] == expected
+
+
+def _campaign(client: TestClient, name: str, region_pack: str = "global_en") -> int:
+    return client.post(
+        "/api/campaigns", json={"name": name, "kind": "other", "region_pack": region_pack}
+    ).json()["campaign_id"]
+
+
+def _application(client: TestClient, campaign_id: int, company: str, **extra: object) -> int:
+    return client.post(
+        "/api/applications",
+        json={"campaign_id": campaign_id, "company_name": company, "track": "other", **extra},
+    ).json()["application_id"]
+
+
+def _audit_count(settings: Settings, action: str, row_id: int | None = None) -> int:
+    conn = connect(settings.db_path)
+    try:
+        sql = "SELECT COUNT(*) FROM audit_log WHERE action = ?"
+        params: tuple[object, ...] = (action,)
+        if row_id is not None:
+            sql += " AND row_id = ?"
+            params += (row_id,)
+        return int(conn.execute(sql, params).fetchone()[0])
+    finally:
+        conn.close()
+
+
+def test_upcoming_emits_one_item_per_in_window_field(client: TestClient) -> None:
+    campaign_id = _campaign(client, "per-field")
+    now = datetime.now(UTC)
+    app_id = _application(client, campaign_id, "Acme")
+    client.patch(
+        f"/api/applications/{app_id}",
+        json={
+            "company_name": "Acme",
+            "track": "other",
+            "deadline_at": (now + timedelta(days=40)).isoformat(),
+            "next_action": "call back",
+            "next_action_due": (now + timedelta(days=1)).isoformat(),
+        },
+    )
+    upcoming = client.get(f"/api/campaigns/{campaign_id}/dashboard").json()["upcoming"]
+    assert [(u["kind"], u["label"]) for u in upcoming] == [("next_action", "call back")]
+
+
+def test_closed_applications_leave_the_todo_lists(client: TestClient) -> None:
+    campaign_id = _campaign(client, "closed")
+    now = datetime.now(UTC)
+    app_id = _application(client, campaign_id, "Acme")
+    client.patch(
+        f"/api/applications/{app_id}",
+        json={
+            "company_name": "Acme",
+            "track": "other",
+            "deadline_at": (now + timedelta(hours=1)).isoformat(),
+            "next_action": "reply",
+            "next_action_due": (now + timedelta(hours=2)).isoformat(),
+        },
+    )
+    dash = client.get(f"/api/campaigns/{campaign_id}/dashboard").json()
+    assert len(dash["upcoming"]) == 2
+    assert dash["deadlines_this_week"] == 1
+
+    client.post(f"/api/applications/{app_id}/status", json={"user_status": "rejected"})
+    dash = client.get(f"/api/campaigns/{campaign_id}/dashboard").json()
+    assert dash["upcoming"] == []
+    assert dash["deadlines_this_week"] == 0
+
+
+def test_patch_event_rederives_status(client: TestClient) -> None:
+    campaign_id = _campaign(client, "patch-ev")
+    app_id = _application(client, campaign_id, "Acme")
+    other_id = _application(client, campaign_id, "Beta")
+    r = client.post(
+        f"/api/applications/{app_id}/events",
+        json={"event_type": "interview", "occurred_at": "2031-01-01T00:00:00Z"},
+    )
+    event_id = r.json()["events"][0]["event_id"]
+    client.post(
+        f"/api/applications/{app_id}/events",
+        json={"event_type": "ack", "occurred_at": "2031-01-05T00:00:00Z"},
+    )
+
+    r = client.patch(
+        f"/api/applications/{app_id}/events/{event_id}",
+        json={"event_type": "rejection", "occurred_at": "2031-02-01T00:00:00Z", "summary": "no"},
+    )
+    assert r.status_code == 200
+    assert r.json()["auto_status"] == "rejected"
+    assert r.json()["last_event_at"].startswith("2031-02-01")
+    assert r.json()["last_event_type"] == "rejection"
+    edited = next(e for e in r.json()["events"] if e["event_id"] == event_id)
+    assert (edited["event_type"], edited["summary"]) == ("rejection", "no")
+
+    collision = client.patch(
+        f"/api/applications/{app_id}/events/{event_id}",
+        json={"event_type": "ack", "occurred_at": "2031-01-05T00:00:00Z"},
+    )
+    assert collision.status_code == 409
+    assert collision.json()["detail"]["code"] == "event_exists"
+
+    wrong_owner = client.patch(
+        f"/api/applications/{other_id}/events/{event_id}",
+        json={"event_type": "ack", "occurred_at": "2031-03-01T00:00:00Z"},
+    )
+    assert wrong_owner.status_code == 404
+
+    naive = client.patch(
+        f"/api/applications/{app_id}/events/{event_id}",
+        json={"event_type": "ack", "occurred_at": "2031-03-01T00:00:00"},
+    )
+    assert naive.status_code == 422
+
+
+def test_naive_datetimes_are_rejected(client: TestClient) -> None:
+    campaign_id = _campaign(client, "naive")
+    app_id = _application(client, campaign_id, "Acme")
+    r = client.post(
+        f"/api/applications/{app_id}/events",
+        json={"event_type": "ack", "occurred_at": "2031-01-01T00:00:00"},
+    )
+    assert r.status_code == 422
+    r = client.patch(
+        f"/api/applications/{app_id}",
+        json={"company_name": "Acme", "track": "other", "deadline_at": "2031-01-01T00:00:00"},
+    )
+    assert r.status_code == 422
+
+
+def test_clear_next_action(client: TestClient, settings: Settings) -> None:
+    campaign_id = _campaign(client, "next")
+    app_id = _application(client, campaign_id, "Acme")
+    client.patch(
+        f"/api/applications/{app_id}",
+        json={
+            "company_name": "Acme",
+            "track": "other",
+            "next_action": "call",
+            "next_action_due": "2031-01-01T00:00:00Z",
+        },
+    )
+    r = client.delete(f"/api/applications/{app_id}/next-action")
+    assert r.status_code == 200
+    assert (r.json()["next_action"], r.json()["next_action_due"]) == (None, None)
+    assert _audit_count(settings, "application.update", app_id) == 2  # patch + clear
+    assert client.delete("/api/applications/999/next-action").status_code == 404
+
+
+def test_progress_event_clears_next_action(client: TestClient) -> None:
+    campaign_id = _campaign(client, "progress")
+    app_id = _application(client, campaign_id, "Acme")
+    client.patch(
+        f"/api/applications/{app_id}",
+        json={
+            "company_name": "Acme",
+            "track": "other",
+            "next_action": "wait",
+            "next_action_due": "2031-01-01T00:00:00Z",
+        },
+    )
+    r = client.post(
+        f"/api/applications/{app_id}/events",
+        json={"event_type": "note", "occurred_at": "2031-01-02T00:00:00Z"},
+    )
+    assert r.json()["next_action"] == "wait"  # no status change, nothing cleared
+    r = client.post(
+        f"/api/applications/{app_id}/events",
+        json={"event_type": "interview", "occurred_at": "2031-01-03T00:00:00Z"},
+    )
+    assert r.json()["auto_status"] == "interviewing"
+    assert (r.json()["next_action"], r.json()["next_action_due"]) == (None, None)
+
+
+def test_patch_renames_company_display_name(client: TestClient, settings: Settings) -> None:
+    campaign_id = _campaign(client, "rename")
+    app_id = _application(client, campaign_id, "acme robotics")
+    r = client.patch(
+        f"/api/applications/{app_id}",
+        json={"company_name": "ACME Robotics", "track": "other"},
+    )
+    assert r.json()["company"] == "ACME Robotics"
+    assert client.get(f"/api/applications/{app_id}").json()["company"] == "ACME Robotics"
+    assert _audit_count(settings, "company.rename") == 1
+    conn = connect(settings.db_path)
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM company").fetchone()[0] == 1
+    finally:
+        conn.close()
+
+
+def test_patch_conflict_reports_existing_id(client: TestClient) -> None:
+    campaign_id = _campaign(client, "conflict")
+    a = _application(client, campaign_id, "Acme", role="SWE")
+    b = _application(client, campaign_id, "Beta", role="SWE")
+    r = client.patch(
+        f"/api/applications/{b}", json={"company_name": "Acme", "track": "other", "role": "SWE"}
+    )
+    assert r.status_code == 409
+    assert r.json()["detail"] == {"code": "application_exists", "existing_application_id": a}
+
+
+def test_duplicate_event_writes_nothing(client: TestClient, settings: Settings) -> None:
+    campaign_id = _campaign(client, "dup-noop")
+    app_id = _application(client, campaign_id, "Acme")
+    body = {"event_type": "interview", "occurred_at": "2031-01-01T00:00:00Z"}
+    first = client.post(f"/api/applications/{app_id}/events", json=body).json()
+    conn = connect(settings.db_path)
+    try:
+        audits_before = conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0]
+        updated_before = conn.execute(
+            "SELECT updated_at FROM application WHERE application_id = ?", (app_id,)
+        ).fetchone()[0]
+        assert client.post(f"/api/applications/{app_id}/events", json=body).status_code == 409
+        assert conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0] == audits_before
+        updated_after = conn.execute(
+            "SELECT updated_at FROM application WHERE application_id = ?", (app_id,)
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    assert updated_after == updated_before
+    assert first["auto_status"] == "interviewing"
+
+
+def test_pipeline_latest_event_ignores_silent_types(client: TestClient) -> None:
+    campaign_id = _campaign(client, "silent")
+    app_id = _application(client, campaign_id, "Acme")
+    client.post(
+        f"/api/applications/{app_id}/events",
+        json={"event_type": "ack", "occurred_at": "2031-01-01T00:00:00Z"},
+    )
+    r = client.post(
+        f"/api/applications/{app_id}/events",
+        json={"event_type": "pass", "occurred_at": "2031-01-05T00:00:00Z"},
+    )
+    assert r.json()["last_event_at"].startswith("2031-01-05")
+    r = client.post(
+        f"/api/applications/{app_id}/events",
+        json={"event_type": "note", "occurred_at": "2031-01-09T00:00:00Z"},
+    )
+    assert r.json()["last_event_type"] == "pass"
+    assert r.json()["last_event_at"].startswith("2031-01-05")
+    rows = client.get(f"/api/campaigns/{campaign_id}/applications").json()
+    assert rows[0]["last_event_type"] == "pass"
+
+
+def test_campaign_tz_follows_its_own_pack(client: TestClient) -> None:
+    jp = _campaign(client, "jp", region_pack="japan")
+    en = _campaign(client, "en")  # newest campaign becomes active
+    campaigns = {c["campaign_id"]: c for c in client.get("/api/campaigns").json()}
+    assert campaigns[jp]["tz"] == "Asia/Tokyo"
+    assert campaigns[en]["tz"] == "UTC"
+    assert campaigns[en]["is_active"] is True
+    assert client.get("/api/meta").json()["tz"] == "UTC"
+
+    now = datetime.now(UTC)
+    app_id = _application(client, jp, "Acme")
+    client.post(
+        f"/api/applications/{app_id}/events",
+        json={"event_type": "interview", "occurred_at": (now + timedelta(days=1)).isoformat()},
+    )
+    dash = client.get(f"/api/campaigns/{jp}/dashboard")
+    assert dash.status_code == 200
+    assert dash.json()["interviews_next_7d"] == 1
+
+
+def test_unknown_region_pack_in_db_does_not_break_reads(
+    client: TestClient, settings: Settings
+) -> None:
+    conn = connect(settings.db_path)
+    try:
+        conn.execute(
+            "INSERT INTO campaign(name, kind, region_pack, flags_json, is_active)"
+            " VALUES ('gone', 'other', 'gone', '{}', 1)"
+        )
+        campaign_id = conn.execute("SELECT campaign_id FROM campaign").fetchone()[0]
+    finally:
+        conn.close()
+    assert client.get("/api/meta").json()["tz"] == "UTC"
+    assert client.get("/api/campaigns").json()[0]["tz"] == "UTC"
+    assert client.get(f"/api/campaigns/{campaign_id}/dashboard").status_code == 200
+
+
+def test_untrusted_host_is_rejected(settings: Settings, tmp_path: Path) -> None:
+    app = create_app(settings, dist_dir=tmp_path / "no-dist")
+    with TestClient(app, base_url="http://evil.example") as c:
+        assert c.get("/api/meta").status_code == 400
+    with TestClient(app, base_url="http://localhost") as c:
+        assert c.get("/api/meta").status_code == 200
+
+
+def test_non_loopback_bind_without_auth_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match=r"127\.0\.0\.1"):
+        create_app(Settings(host="0.0.0.0"), dist_dir=tmp_path / "no-dist")
+    with pytest.raises(RuntimeError):
+        create_app(Settings(), dist_dir=tmp_path / "no-dist", bind_host="0.0.0.0")
