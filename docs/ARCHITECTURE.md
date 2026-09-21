@@ -88,7 +88,7 @@ flowchart LR
 | CLI | typer + rich | 快速可用的看板与诊断 | — |
 | 调度 | Phase 1 简单循环 `jobpilot watch`；Phase 2 起 Windows 任务计划（schtasks ONLOGON）登录自启；Phase 5 起 APScheduler 3.11 随 FastAPI lifespan 运行（4.x 仍是预发布） | 单进程足够，无需队列 | WinSW 服务（需登录前启动时）；systemd timer（Linux） |
 | Web 后端 | FastAPI + uvicorn（默认绑定 127.0.0.1），sse-starlette 流式 | 与 pydantic 同生态 | — |
-| Web 前端 | React 19 + TypeScript + Vite + Tailwind（`frontend/`），design tokens 来自 `docs/DESIGN.md` | 完整控制设计系统；Node 22 已在 | NiceGUI 挂在同一 FastAPI 上（工具链拖慢时的备选） |
+| Web 前端 | React 19 + TypeScript + Vite + Tailwind（`frontend/`），design tokens 来自 `docs/design/v1/tokens.css` | 完整控制设计系统；Node 22 已在 | NiceGUI 挂在同一 FastAPI 上（工具链拖慢时的备选） |
 | 密钥 | keyring（Windows Credential Manager）存短 key；Google 令牌从 Phase 0 起用 DPAPI 加密文件（Credential Manager 有长度上限）；Linux 用 Fernet 加密文件 | 平台原生保护 | — |
 | 质量 | pytest、ruff、pyright、pre-commit（含 `scripts/check_pii.py`） | 常规 | — |
 

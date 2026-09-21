@@ -2,7 +2,7 @@
 
 | 项目 | 内容 |
 |---|---|
-| 状态 | v0.4（2026-09-18，按决策 D26 重排） |
+| 状态 | v0.4（2026-09-18 按决策 D26 重排；2026-09-21 第 1 步验收通过） |
 | 前置 | [REQUIREMENTS.md](REQUIREMENTS.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [design/v1/](design/v1/) |
 
 原则：**先有每天能打开、能手动记录的看板，再让数据自动流入，最后加对话**。每一步独立可用；每一步一个 git 分支（`step1-board`、`step2a-gmail` …），用户验收后合回 `main`。托管部署（Docker、云、登录自启）全部放在最后一步（D27），此前只在本机 `jobpilot serve` 运行。不做语音（D31）。
@@ -15,7 +15,7 @@
 |---|---|---|---|
 | 0 | 骨架 | `src/` 布局、配置、密钥、迁移器、区域包协议、CI 基线 | 完成（2026-09-17） |
 | 0.5 | 追踪域与 Google 连接器 | 迁移 0001 全部表、枚举、仓储、FTS；`ReadOnlyHttp`、多账号 `auth google`、Gmail API 层 | 完成（原 Phase 1 S1 / S2，`9ab39b3`、`1e95673`） |
-| 1 | 基础网页看板 | FastAPI 看板 API + 手动录入 + React 四页（看板 / Pipeline / 申请详情 / 周期设置） | **进行中**（分支 `step1-board`） |
+| 1 | 基础网页看板 | FastAPI 看板 API + 手动录入 + React 四页（看板 / Pipeline / 申请详情 / 周期设置） | 完成（2026-09-21 验收通过；`step1-board` + `feat/ui-reconstruction`） |
 | 2a | Gmail 接入 | 规则与短语、同步与分类管线、`sync / senders / watch`、信息源页、待复核页 | |
 | 2b | LinkedIn 导出导入 | `import linkedin <zip>`、Easy Apply 合并 | |
 | 2c | Calendar 面试 | `interview_event`、gcal 只读同步、面试页 | |
@@ -40,13 +40,13 @@
 
 ---
 
-## 第 1 步 · 基础网页看板（进行中）
+## 第 1 步 · 基础网页看板（完成，2026-09-21 验收通过）
 
 **目标**：在浏览器里建周期、手动添加申请、记事件、改状态，看板与 Pipeline 随之变化；界面按 MITA Finance 设计语言，三语，暗色可切。数据全部手动录入，不接任何外部源。
 
 范围：
-- 后端：`services/status.py`（事件 → 自动状态推导、`is_ghosted`）、`services/manual.py`（添加申请 / 记事件 / 改用户状态，直接写库 + 审计，D29）、`CampaignRepo.set_active`、`web/`（FastAPI 工厂、9 个 JSON 接口、托管 `frontend/dist`）、`jobpilot serve`。
-- 前端 `frontend/`：React 19 + Vite 7 + Tailwind v4 + TanStack Query + React Router + lucide-react；`tokens.css` 拷自 `docs/design/v1/`；应用外壳（完整导航树，未做项标 Soon；顶栏周期切换 / 语言 / 主题）；页面 01 看板、02 Pipeline（表格视图 + 添加申请）、03 申请详情（改状态确认卡、记事件、备注）、12 设置（周期管理）；i18n 跟随浏览器回退 en（D28）。
+- 后端：`services/status.py`（事件 → 自动状态推导、`is_ghosted`）、`services/manual.py`（添加申请（可带初始状态）/ 编辑申请 / 记事件 / 删事件 / 改用户状态 / 删申请 / 删周期，直接写库 + 审计，D29、D33）、`CampaignRepo.set_active`、`web/`（FastAPI 工厂、13 个 JSON 接口、错误码化的 `detail`、托管 `frontend/dist`）、`jobpilot serve`。
+- 前端 `frontend/`：React 19 + Vite 7 + Tailwind v4 + TanStack Query + React Router + lucide-react；`tokens.css` 拷自 `docs/design/v1/`；应用外壳（完整导航树，未做项标 Soon；顶栏周期切换下拉 / 语言分段控件 / 主题）；页面 01 看板（KPI、今日与本周分组待办、手绘风状态分布）、02 Pipeline（表格视图、整行可点、状态组 / track / 关键词筛选记在 URL、添加申请可选初始状态并可连续录入）、03 申请详情（编辑基本信息与截止 / 下一步 / 门户链接、改状态确认卡、事件卡片可编辑 / 删除、低置信待复核标记、备注保存为事件、删除申请）、01 看板（整行可点、已过期组、下一步一键完成、按时段问候）、12 信息源空态 · 设置（周期管理，删除周期需两步确认）；成功 toast；字体自托管（D34）；本地 API Host 校验（D35）；i18n 跟随浏览器回退 en（D28）。
 - 文档：本文件、REQUIREMENTS D26 到 D31、`docs/design/` 说明、CLAUDE.md 前端约定。
 
 不做：⌘K 搜索、AI 提醒卡、信息源健康条、Pipeline 看板视图、手机版、面试页、任何自动数据源、`pending_actions`、CLI 录入命令。
@@ -55,7 +55,9 @@
 - `uv run jobpilot serve` 后打开 `http://127.0.0.1:8765`：新建周期 → 添加申请 → 记一条「面试」事件 → 状态自动变为面试中 → 手动改为落选 → 看板计数与 Pipeline 分组随之变化；`audit_log` 有前后值。
 - 语言三选一切换并记住；暗色切换正常。
 - `pytest / ruff / pyright / check_pii` 全绿；`npm run build && npm run lint` 通过。
-- 由用户验收，Claude Design 的四页 HTML 到齐后对照校正视觉细节。
+- 由用户验收。Claude Design 四页 HTML、组件规范、三语字典已于 2026-09-18 到齐（`docs/design/v1/dashboard-v1/`）；2026-09-20 对照校正完毕（分支 `feat/ui-reconstruction`），面试卡 / 门户卡 / 邮件引用 / ⌘K 搜索等依赖后续数据源的设计元素留给 2a / 2c。
+- UAT 复查（2026-09-20，6 个视角、28 项确认）全部修复：编辑 / 删除申请、删事件、删周期、初始状态、toast，以及事件时间按显示时区解析、看板 KPI 口径、错误反馈与重试、错误文案三语化、a11y 细节。
+- 第二轮 UAT（2026-09-20 用户反馈 + Fable 7 视角深查，去重后 45 项）全部修复：事件可编辑、整行 / 整卡可点、删周期两步确认可被绕过、看板窗口与 closed 排除、最近事件口径、公司改名 no-op、applied_at 口径、时区跟随选中周期、Safari 下周期菜单、字体自托管、Host 校验等。
 
 ---
 

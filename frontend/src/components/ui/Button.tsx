@@ -1,7 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 
 type Variant = 'primary' | 'outline' | 'ghost' | 'danger';
-type Size = 'sm' | 'md' | 'lg';
+type Size = 'sm' | 'md' | 'lg' | 'icon';
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -14,13 +14,14 @@ const VARIANT: Record<Variant, string> = {
   outline:
     'bg-transparent text-ink-900 border border-ink-200 hover:bg-cream-100 disabled:text-ink-500',
   ghost: 'bg-transparent text-ink-700 hover:bg-cream-100 disabled:text-ink-200',
-  danger: 'bg-neg-500 text-cream-50 hover:bg-red-700 disabled:bg-ink-200 disabled:text-ink-500',
+  danger: 'bg-neg-500 text-cream-50 hover:bg-neg-500/90 disabled:bg-ink-200 disabled:text-ink-500',
 };
 
 const SIZE: Record<Size, string> = {
   sm: 'h-8 px-3 text-xs',
   md: 'h-10 px-4 text-sm',
   lg: 'h-12 px-5 text-base',
+  icon: 'h-8 w-8 p-0 text-xs',
 };
 
 export const Button = forwardRef<HTMLButtonElement, Props>(function Button(

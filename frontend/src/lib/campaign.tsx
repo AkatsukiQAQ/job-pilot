@@ -10,12 +10,21 @@ interface Value {
   current: Campaign | null;
   select: (id: number) => void;
   loaded: boolean;
+  error: Error | null;
+  refetch: () => void;
 }
 
-const Ctx = createContext<Value>({ campaigns: [], current: null, select: () => {}, loaded: false });
+const Ctx = createContext<Value>({
+  campaigns: [],
+  current: null,
+  select: () => {},
+  loaded: false,
+  error: null,
+  refetch: () => {},
+});
 
 export function CampaignProvider({ children }: { children: ReactNode }) {
-  const { data, isSuccess } = useCampaigns();
+  const { data, isSuccess, error, refetch } = useCampaigns();
   const [id, setId] = useState<number | null>(() => {
     const v = localStorage.getItem(KEY);
     return v ? Number(v) : null;
@@ -34,8 +43,10 @@ export function CampaignProvider({ children }: { children: ReactNode }) {
         setId(next);
       },
       loaded: isSuccess,
+      error,
+      refetch,
     }),
-    [data, id, isSuccess],
+    [data, id, isSuccess, error, refetch],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

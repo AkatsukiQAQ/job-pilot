@@ -7,6 +7,7 @@ database is opened lazily so `--help`, `version` and `doctor` never create files
 from __future__ import annotations
 
 import json
+import os
 import platform
 import sqlite3
 import sys
@@ -43,8 +44,8 @@ from jobpilot.store.db import (
 )
 from jobpilot.store.repo import CampaignRepo, EmailAccountRepo, SourceStateRepo
 
-console = Console()
-err = Console(stderr=True)
+console = Console(highlight=False)
+err = Console(stderr=True, highlight=False)
 
 
 @dataclass
@@ -582,11 +583,20 @@ def serve(
     from jobpilot.web.app import create_app
 
     s = _ctx(ctx).settings
-    bind = {"host": host or s.host, "port": port or s.port}
+    bind_host, bind_port = host or s.host, port or s.port
     if reload:
-        uvicorn.run("jobpilot.web.app:app_from_env", factory=True, reload=True, **bind)
+        # The reload worker rebuilds Settings() from the environment; pass the effective bind host
+        # through so create_app's loopback guard sees what uvicorn actually binds.
+        os.environ["JOBPILOT_HOST"] = bind_host
+        uvicorn.run(
+            "jobpilot.web.app:app_from_env",
+            factory=True,
+            reload=True,
+            host=bind_host,
+            port=bind_port,
+        )
     else:
-        uvicorn.run(create_app(s), **bind)
+        uvicorn.run(create_app(s, bind_host=bind_host), host=bind_host, port=bind_port)
 
 
 @app.command()

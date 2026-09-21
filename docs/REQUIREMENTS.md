@@ -65,7 +65,7 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 | 核心 | 汇总用户参与的每一个选考流程：潜在 / 进行中 / 已结束。 |
 | 核心 | 状态自动来自信息源（邮件、日历、导入），并记录「自动状态」与「用户状态」两列，用户状态永远优先。 |
 | 核心 | 每条记录保存：当前状态、更新时间、当前情况、下一步行动、截止日期、信息来源（手动 / Gmail / Calendar / LinkedIn 导出）。 |
-| 核心 | 事件流（append-only）：报名、ES 提交、书类选考、笔试、面试各轮、结果、内々定、内定、承诺、辞退、退职交涉、入职、跟进提醒等。 |
+| 核心 | 事件流（append-only；用户可删除误记的事件，删除本身写审计，D33）：报名、ES 提交、书类选考、笔试、面试各轮、结果、内々定、内定、承诺、辞退、退职交涉、入职、跟进提醒等。 |
 | 核心 | 低置信度的自动识别进入「待复核」队列，不直接改状态。 |
 | 重要 | 「门户待查看」事件：邮件只写「マイページをご確認ください」时，记录一条带门户链接的待办，用户可一键回填结果。 |
 | 重要 | 跟进与沉默：14 天无回复生成「需跟进」事件并进入今日待办；30 天仍无事件则打上 ghosted 标记（看板灰显，不改状态）。截止提醒：ES 截止、Web テスト期限、24 小时内面试。 |
@@ -136,7 +136,7 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 | 核心 | 卡片 / 详情的动作：收藏、加入比较、前往官方入口、记录备注、改应聘状态（经确认门）；面试条目可跳到对应申请并回填结果。侧栏固定入口：看板 / 岗位 / 面试 / 记忆收件箱 / 待复核 / 信息源。 |
 | 重要 | 面试日程：月份概览 + Agenda 列表，统一 JST（时区可配置），确认与待排期分开，无链接显示「待确认」。 |
 | 重要 | 并排比较视图、记忆收件箱、待复核队列、信息源健康状态条（正常 / 降级 / 需重新授权 / 不可用 / 已禁用）。 |
-| 重要 | 设计交付物：Claude Design 按 [design/claude-design-prompt.md](design/claude-design-prompt.md) 产出，落在 `docs/design/v1/`（A `tokens.css`、B `ia-and-flows.md` 已交付 2026-09-18；C 页面 HTML、D 组件规范、E 三语字典按 [design/claude-design-prompt-batch2.md](design/claude-design-prompt-batch2.md) 分批交付）。前端直接以 `v1/` 为实现依据，不再单独蒸馏 `DESIGN.md`（决策 D22）。 |
+| 重要 | 设计交付物：Claude Design 按 [design/claude-design-prompt.md](design/claude-design-prompt.md) 产出，落在 `docs/design/v1/`（A `tokens.css`、B `ia-and-flows.md` 已交付 2026-09-18；C 第 1 步四页 HTML、D 组件规范、E 三语字典按 [design/claude-design-prompt-batch2.md](design/claude-design-prompt-batch2.md) 已交付 2026-09-18，落 `v1/dashboard-v1/`；F `open-questions.md` 未交付）。前端直接以 `v1/` 为实现依据，不再单独蒸馏 `DESIGN.md`（决策 D22）。 |
 | 重要 | 视觉方向：沿用姊妹项目 MITA Finance 的设计语言（决策 D22）：暖纸 cream / ink 色板、琥珀点缀、手写体品牌字标与大标题、Fraunces 页面标题、14px 纸感卡片与暖棕阴影、黄色导航高亮、手绘 SVG 图表；对话为侧栏进入的全页工作台，**无右下角 FAB 浮层**（设计 B 已取消）；「待确认」用琥珀虚线占位；安静、轻盈、像求职手账而非 SaaS 后台；线性图标（Lucide）；固定侧栏；高信息密度但不拥挤。原型文档里的「深绿主色 / 薄荷绿选中态」方案作废。 |
 | 重要 | 默认语言跟随浏览器（zh / ja 命中即用，否则 en），可切换并记住（决策 D28）。 |
 | 重要 | 桌面优先、移动可用：看板与面试 Agenda 在 390 px 宽度可用；手机访问（如 Tailscale）有文档。 |
@@ -200,7 +200,7 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 
 ### 4.3 页面基线
 
-机会比较（首页）→ 岗位卡片 → 岗位详情 → 并排比较（≤3）→ 应聘进度追踪 → 面试日程 → 更新请求。这是原型的页面顺序；Mita JobPilot 自己的信息架构在 `docs/DESIGN.md` 中定义。
+机会比较（首页）→ 岗位卡片 → 岗位详情 → 并排比较（≤3）→ 应聘进度追踪 → 面试日程 → 更新请求。这是原型的页面顺序；Mita JobPilot 自己的信息架构在 `docs/design/v1/ia-and-flows.md` 中定义。
 
 ### 4.4 我们与原型的差异
 
@@ -335,9 +335,9 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 
 ### 7.3 下一步（2026-09-18 更新）
 
-已完成：Phase 0 骨架；追踪域 schema 与仓储（原 Phase 1 S1）；Google 只读连接器、多账号授权、Gmail API 层（原 S2，`1e95673`）；Google Cloud 项目与 Desktop OAuth 客户端已就位；Claude Design 交付物 A / B 已落 `docs/design/v1/`。
+已完成：Phase 0 骨架；追踪域 schema 与仓储（原 Phase 1 S1）；Google 只读连接器、多账号授权、Gmail API 层（原 S2，`1e95673`）；Google Cloud 项目与 Desktop OAuth 客户端已就位；Claude Design 交付物 A / B 已落 `docs/design/v1/`，C / D / E（第 1 步四页 HTML、组件规范、三语字典）已落 `docs/design/v1/dashboard-v1/`。
 
-进行中：**第 1 步 基础网页看板**（分支 `step1-board`），见 ROADMAP.md。之后按 D26 顺序：Gmail 接入 → LinkedIn 导出 → Calendar → 对话 → 岗位搜索 → 记忆 → 加固 → 发布与部署。
+已完成（2026-09-21 验收）：**第 1 步 基础网页看板**（`step1-board` + `feat/ui-reconstruction`）。进行中：**第 2a 步 Gmail 接入**（分支 `step2a-gmail`），见 ROADMAP.md。之后按 D26 顺序：Gmail 接入 → LinkedIn 导出 → Calendar → 对话 → 岗位搜索 → 记忆 → 加固 → 发布与部署。
 
 ---
 
@@ -377,6 +377,9 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 | D29 | 用户本人在网页 / CLI 上的写操作直接写库并写审计，前端确认卡片只是二次确认；`pending_actions` 提议表只服务 AI 路径，在第 3b 步引入 | 操作者是用户本人，不违反约束 2；第一步少一张表一层 API | 3b 时不迁移手动路径 |
 | D30 | 新增依赖：后端 fastapi、uvicorn[standard]，dev httpx（TestClient）；前端 React 19 / Vite 7 / Tailwind v4 / TanStack Query 5 / React Router 7 / lucide-react（与 MITA Finance 一致） | 第一步需要 Web 服务与前端；与姊妹项目同栈省学习成本 | 无 |
 | D31 | **不做语音**：删除按住说话、语音操作清单、转写方案；9.2 中浏览器 / 混说识别两问题作废 | 用户 2026-09-18 决定 | 用户可重新提出 |
+| D33 | 用户可在网页上**编辑**申请（公司 / 岗位 / Track / 岗位链接 / 备注 / 截止日期 / 下一步 / 门户链接，不允许换周期）和**编辑事件**（类型 / 时间 / 摘要，改后重算自动状态）、**硬删除**申请、事件、周期：删除写 `audit_log`（`before_json` 保留整行；级联删除的事件各有一行审计），周期删除先逐条删申请再删周期，并需两步确认（确认 + 输入 `DELETE`）；不做归档 / 软删除。添加申请可选初始状态，写为 `user_status`（用户断言，不伪造事件）。「下一步」可在看板一键标记完成（清空字段，写审计），记到更高阶段的事件时自动清空。改公司名只改大小写 / 全半角时同事务更新 `company.name`（审计 `company.rename`）。后端错误 `detail` 统一为 `{code, …}` 供前端三语化 | 用户 2026-09-20 验收时要求；归档会占住自然键且需新迁移；审计表已能追溯删除 | 需要时可加归档列 |
+| D34 | 前端字体**自托管**：`@fontsource/{noto-sans-jp,kalam,indie-flower,klee-one,fraunces,jetbrains-mono}` 打进构建产物，去掉对 `fonts.googleapis.com` 的运行时请求 | 用户 2026-09-20 决定；CLAUDE.md 要求新的数据外发路径先记录再实现，字体拉取本身就是一条外发路径，且离线不可用 | 可换回 CDN，但要在此表记录 |
+| D35 | 本地 Web API 加 `TrustedHostMiddleware`（只接受 loopback 与配置的 host），`create_app` 在绑定非 loopback 地址且 `JOBPILOT_AUTH_MODE=none` 时拒绝启动；认证模式与 Docker 部署留到第 7 步 | Fable 深查（2026-09-20）指出 DNS rebinding 可让任意网页读写本地 API；D27 已规定此前只在本机运行 | 第 7 步实现认证后放开 |
 
 ---
 

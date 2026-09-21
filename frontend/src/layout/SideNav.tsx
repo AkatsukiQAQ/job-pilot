@@ -15,7 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { Key } from '@/i18n';
 import { useT } from '@/lib/i18n';
 
@@ -48,7 +48,7 @@ const GROUPS: { label: Key; items: Item[] }[] = [
   {
     label: 'nav.group.system',
     items: [
-      { to: '/sources', label: 'nav.sources', icon: PlugZap, soon: true },
+      { to: '/settings?tab=sources', label: 'nav.sources', icon: PlugZap },
       { to: '/settings', label: 'nav.settings', icon: Settings },
     ],
   },
@@ -56,8 +56,17 @@ const GROUPS: { label: Key; items: Item[] }[] = [
 
 const KEY = 'jobpilot.nav.collapsed';
 
+/** '/settings' and '/settings?tab=sources' share a route; NavLink can't tell them apart by pathname alone. */
+function isActive(item: Item, pathname: string, tab: string | null): boolean {
+  if (item.to === '/settings?tab=sources') return pathname === '/settings' && tab === 'sources';
+  if (item.to === '/settings') return pathname === '/settings' && tab !== 'sources';
+  return pathname === item.to || (item.to !== '/' && pathname.startsWith(item.to + '/'));
+}
+
 export function SideNav() {
   const { t } = useT();
+  const location = useLocation();
+  const tab = new URLSearchParams(location.search).get('tab');
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(KEY) === '1');
   const toggle = () => {
     localStorage.setItem(KEY, collapsed ? '0' : '1');
@@ -74,11 +83,21 @@ export function SideNav() {
       ].join(' ')}
     >
       <div className="hidden items-center gap-3 px-1 md:mb-6 md:flex">
-        <div
-          className="hand flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full text-2xl text-cream-50"
-          style={{ background: 'var(--color-accent-amber)' }}
-        >
-          M
+        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center">
+          <svg
+            width="40"
+            height="40"
+            viewBox="0 0 40 40"
+            fill="none"
+            stroke="var(--color-ink-900)"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M20 3.5C29 3 36.5 10 36.5 19.5S29.5 36.5 20 36.5 3.5 29.5 3.5 20 11 4 20 3.5" />
+            <path d="M12 27 14.5 13l5.5 9 5.5-9L28 27" stroke="var(--color-accent-amber)" strokeWidth="2.2" />
+          </svg>
         </div>
         {collapsed ? null : (
           <div className="mt-1 min-w-0">
@@ -102,13 +121,18 @@ export function SideNav() {
               const Icon = item.icon;
               const label = t(item.label);
               return item.soon ? (
-                <span
+                <button
                   key={item.to}
+                  type="button"
+                  aria-disabled="true"
+                  aria-label={`${label} · ${t('nav.soon')}`}
                   title={`${label} · ${t('nav.soon')}`}
                   className={`${itemBase} cursor-default text-ink-400`}
                 >
                   <Icon size={18} />
-                  {collapsed ? null : (
+                  {collapsed ? (
+                    <span className="sr-only">{label}</span>
+                  ) : (
                     <>
                       <span>{label}</span>
                       <span className="ml-auto hidden rounded-full bg-cream-200 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-ink-500 md:inline">
@@ -116,23 +140,26 @@ export function SideNav() {
                       </span>
                     </>
                   )}
-                </span>
+                </button>
               ) : (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.to === '/'}
-                  title={label}
-                  className={({ isActive }) =>
-                    [
-                      itemBase,
-                      isActive ? 'bg-cream-300 text-ink-900' : 'text-ink-700 hover:bg-cream-200/60',
-                    ].join(' ')
-                  }
-                >
-                  <Icon size={18} />
-                  {collapsed ? null : <span>{label}</span>}
-                </NavLink>
+                (() => {
+                  const active = isActive(item, location.pathname, tab);
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      title={label}
+                      aria-current={active ? 'page' : undefined}
+                      className={[
+                        itemBase,
+                        active ? 'bg-cream-300 text-ink-900' : 'text-ink-700 hover:bg-cream-200/60',
+                      ].join(' ')}
+                    >
+                      <Icon size={18} />
+                      {collapsed ? <span className="sr-only">{label}</span> : <span>{label}</span>}
+                    </Link>
+                  );
+                })()
               );
             })}
           </div>

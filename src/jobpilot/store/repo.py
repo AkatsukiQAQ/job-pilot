@@ -30,10 +30,12 @@ from jobpilot.domain import (
     EmailMessage,
     EmailMessageCreate,
     EventCreate,
+    EventType,
     PiiKind,
     SourceHealth,
     SourceState,
     StatusSetBy,
+    Track,
 )
 from jobpilot.store.db import to_iso, transaction, utc_now_iso
 
@@ -83,9 +85,30 @@ class CampaignRepo:
     def add(self, new: CampaignCreate, *, actor: Actor = "user", source: str = "cli") -> Campaign:
         """Insert a campaign and its audit row in one transaction.
 
-        A duplicate name raises sqlite3.IntegrityError (campaign.name is UNIQUE).
+        A duplicate name raises sqlite3.IntegrityError (campaign.name is UNIQUE). When
+        ``new.is_active`` is True, every other active campaign is deactivated first (one audit
+        row each) so at most one campaign stays active.
         """
         with transaction(self.conn):
+            if new.is_active:
+                for other in self.conn.execute(
+                    "SELECT * FROM campaign WHERE is_active = 1"
+                ).fetchall():
+                    deactivated = self.conn.execute(
+                        "UPDATE campaign SET is_active = 0 WHERE campaign_id = ? RETURNING *",
+                        (other["campaign_id"],),
+                    ).fetchone()
+                    assert deactivated is not None
+                    write_audit(
+                        self.conn,
+                        actor=actor,
+                        action="campaign.set_active",
+                        table_name="campaign",
+                        row_id=int(other["campaign_id"]),
+                        before=other,
+                        after=deactivated,
+                        source=source,
+                    )
             row = self.conn.execute(
                 "INSERT INTO campaign(name, kind, region_pack, starts_on, ends_on, flags_json,"
                 " is_active) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *",
@@ -200,6 +223,49 @@ class CampaignRepo:
             )
         return Campaign.from_row(row)
 
+    def delete(
+        self, campaign_id: int, *, actor: Actor = "user", source: str = "web"
+    ) -> tuple[int, int]:
+        """Delete a campaign, cascading its applications (and their events). Audited.
+
+        Returns (deleted_applications, deleted_events). If the deleted campaign was active and
+        others remain, the one with the smallest id becomes active. An unknown id raises KeyError.
+        """
+        with transaction(self.conn):
+            before = self.conn.execute(
+                "SELECT * FROM campaign WHERE campaign_id = ?", (campaign_id,)
+            ).fetchone()
+            if before is None:
+                raise KeyError(campaign_id)
+            app_ids = [
+                int(r["application_id"])
+                for r in self.conn.execute(
+                    "SELECT application_id FROM application WHERE campaign_id = ?", (campaign_id,)
+                ).fetchall()
+            ]
+            app_repo = ApplicationRepo(self.conn)
+            n_events = sum(
+                app_repo.delete(app_id, actor=actor, source=source) for app_id in app_ids
+            )
+            self.conn.execute("DELETE FROM campaign WHERE campaign_id = ?", (campaign_id,))
+            write_audit(
+                self.conn,
+                actor=actor,
+                action="campaign.delete",
+                table_name="campaign",
+                row_id=campaign_id,
+                before=before,
+                after=None,
+                source=source,
+            )
+            if before["is_active"]:
+                remaining = self.conn.execute(
+                    "SELECT campaign_id FROM campaign ORDER BY campaign_id LIMIT 1"
+                ).fetchone()
+                if remaining is not None:
+                    self.set_active(int(remaining["campaign_id"]), actor=actor, source=source)
+        return len(app_ids), n_events
+
     def count(self) -> int:
         return int(self.conn.execute("SELECT COUNT(*) FROM campaign").fetchone()[0])
 
@@ -309,6 +375,33 @@ class CompanyRepo:
             )
         return Company.from_row(row)
 
+    def rename(
+        self, company_id: int, name: str, *, actor: Actor = "user", source: str = "web"
+    ) -> Company:
+        """Change the display name only (name_norm stays, so matching is unaffected). Audited."""
+        with transaction(self.conn):
+            before = self.conn.execute(
+                "SELECT * FROM company WHERE company_id = ?", (company_id,)
+            ).fetchone()
+            if before is None:
+                raise KeyError(company_id)
+            row = self.conn.execute(
+                "UPDATE company SET name = ?, updated_at = ? WHERE company_id = ? RETURNING *",
+                (name, utc_now_iso(), company_id),
+            ).fetchone()
+            assert row is not None
+            write_audit(
+                self.conn,
+                actor=actor,
+                action="company.rename",
+                table_name="company",
+                row_id=company_id,
+                before=before,
+                after=row,
+                source=source,
+            )
+        return Company.from_row(row)
+
     def current_employer_domains(self) -> set[str]:
         rows = self.conn.execute(
             "SELECT c.domain AS d FROM company c WHERE c.is_current_employer = 1 AND c.domain IS NOT NULL"
@@ -335,6 +428,7 @@ class AutoUpdate:
     portal_url: str | None = None
     job_url: str | None = None
     clear_next_action: bool = False
+    force_dates: bool = False
 
 
 class ApplicationRepo:
@@ -399,65 +493,78 @@ class ApplicationRepo:
         actor: Actor = "system",
         source: str = "sync",
     ) -> Application:
-        """Apply automatic changes; never touches user_status. Audited with before/after."""
-        sets: list[str] = ["updated_at = ?"]
-        params: list[Any] = [utc_now_iso()]
-        if upd.auto_status is not None:
-            sets.append("auto_status = ?")
-            params.append(upd.auto_status.value)
-        if upd.status_set_by is not None:
-            sets.append("status_set_by = ?")
-            params.append(upd.status_set_by.value)
-        if upd.last_event_at is not None:
-            sets.append("last_event_at = ?")
-            params.append(to_iso(upd.last_event_at))
-        if upd.applied_at is not None:
-            sets.append("applied_at = COALESCE(applied_at, ?)")
-            params.append(to_iso(upd.applied_at))
-        if upd.clear_next_action:
-            sets.append("next_action = NULL")
-            sets.append("next_action_due = NULL")
-        else:
-            if upd.next_action is not None:
-                sets.append("next_action = ?")
-                params.append(upd.next_action)
-            if upd.next_action_due is not None:
-                sets.append("next_action_due = ?")
-                params.append(to_iso(upd.next_action_due))
-        if upd.deadline_at is not None:
-            sets.append(
-                "deadline_at = CASE WHEN deadline_at IS NULL OR deadline_at > ? THEN ? ELSE deadline_at END"
-            )
-            params.extend([to_iso(upd.deadline_at), to_iso(upd.deadline_at)])
-        if upd.portal_url is not None:
-            sets.append("portal_url = COALESCE(portal_url, ?)")
-            params.append(upd.portal_url)
-        if upd.job_url is not None:
-            sets.append("job_url = COALESCE(job_url, ?)")
-            params.append(upd.job_url)
-        params.append(application_id)
+        """Apply automatic changes; never touches user_status. Audited with before/after.
+
+        The would-be row is computed in Python first; when nothing but updated_at would change,
+        no UPDATE and no audit row are written. A user override keeps status_set_by='user'.
+        """
         with transaction(self.conn):
             before = self.conn.execute(
                 "SELECT * FROM application WHERE application_id = ?", (application_id,)
             ).fetchone()
             if before is None:
                 raise KeyError(application_id)
+            old: dict[str, Any] = dict(before)
+            new = dict(old)
+            if upd.auto_status is not None:
+                new["auto_status"] = upd.auto_status.value
+            if upd.status_set_by is not None and old["user_status"] is None:
+                new["status_set_by"] = upd.status_set_by.value
+            if upd.force_dates:
+                new["last_event_at"] = _iso(upd.last_event_at)
+                new["applied_at"] = _iso(upd.applied_at)
+            else:
+                if upd.last_event_at is not None:
+                    new["last_event_at"] = to_iso(upd.last_event_at)
+                if upd.applied_at is not None and old["applied_at"] is None:
+                    new["applied_at"] = to_iso(upd.applied_at)
+            if upd.clear_next_action:
+                new["next_action"] = None
+                new["next_action_due"] = None
+            else:
+                if upd.next_action is not None:
+                    new["next_action"] = upd.next_action
+                if upd.next_action_due is not None:
+                    new["next_action_due"] = to_iso(upd.next_action_due)
+            if upd.deadline_at is not None:
+                deadline = to_iso(upd.deadline_at)
+                if old["deadline_at"] is None or old["deadline_at"] > deadline:
+                    new["deadline_at"] = deadline
+            if upd.portal_url is not None and old["portal_url"] is None:
+                new["portal_url"] = upd.portal_url
+            if upd.job_url is not None and old["job_url"] is None:
+                new["job_url"] = upd.job_url
+            if new == old:
+                return Application.from_row(before)
             row = self.conn.execute(
-                f"UPDATE application SET {', '.join(sets)} WHERE application_id = ? RETURNING *",
-                params,
+                "UPDATE application SET auto_status = ?, status_set_by = ?, last_event_at = ?,"
+                " applied_at = ?, next_action = ?, next_action_due = ?, deadline_at = ?,"
+                " portal_url = ?, job_url = ?, updated_at = ? WHERE application_id = ? RETURNING *",
+                (
+                    new["auto_status"],
+                    new["status_set_by"],
+                    new["last_event_at"],
+                    new["applied_at"],
+                    new["next_action"],
+                    new["next_action_due"],
+                    new["deadline_at"],
+                    new["portal_url"],
+                    new["job_url"],
+                    utc_now_iso(),
+                    application_id,
+                ),
             ).fetchone()
             assert row is not None
-            if _row_json(before) != _row_json(row):
-                write_audit(
-                    self.conn,
-                    actor=actor,
-                    action="application.auto_update",
-                    table_name="application",
-                    row_id=application_id,
-                    before=before,
-                    after=row,
-                    source=source,
-                )
+            write_audit(
+                self.conn,
+                actor=actor,
+                action="application.auto_update",
+                table_name="application",
+                row_id=application_id,
+                before=before,
+                after=row,
+                source=source,
+            )
         return Application.from_row(row)
 
     def set_user_status(
@@ -499,6 +606,134 @@ class ApplicationRepo:
                 source=source,
             )
         return Application.from_row(row)
+
+    def update_fields(
+        self,
+        application_id: int,
+        *,
+        company_id: int,
+        role: str | None,
+        role_norm: str,
+        track: Track,
+        job_url: str | None,
+        notes: str | None,
+        portal_url: str | None,
+        deadline_at: datetime | None,
+        next_action: str | None,
+        next_action_due: datetime | None,
+        actor: Actor = "user",
+        source: str = "web",
+    ) -> Application:
+        """User-initiated field edit (company / role / track / links / dates). Audited.
+
+        An unknown id raises KeyError; a natural-key collision propagates as
+        sqlite3.IntegrityError.
+        """
+        with transaction(self.conn):
+            before = self.conn.execute(
+                "SELECT * FROM application WHERE application_id = ?", (application_id,)
+            ).fetchone()
+            if before is None:
+                raise KeyError(application_id)
+            row = self.conn.execute(
+                "UPDATE application SET company_id = ?, role = ?, role_norm = ?, track = ?,"
+                " job_url = ?, notes = ?, portal_url = ?, deadline_at = ?, next_action = ?,"
+                " next_action_due = ?, updated_at = ? WHERE application_id = ? RETURNING *",
+                (
+                    company_id,
+                    role,
+                    role_norm,
+                    track.value,
+                    job_url,
+                    notes,
+                    portal_url,
+                    _iso(deadline_at),
+                    next_action,
+                    _iso(next_action_due),
+                    utc_now_iso(),
+                    application_id,
+                ),
+            ).fetchone()
+            assert row is not None
+            write_audit(
+                self.conn,
+                actor=actor,
+                action="application.update",
+                table_name="application",
+                row_id=application_id,
+                before=before,
+                after=row,
+                source=source,
+            )
+        return Application.from_row(row)
+
+    def clear_next_action(
+        self, application_id: int, *, actor: Actor = "user", source: str = "web"
+    ) -> Application:
+        """User marks the next action done: next_action / next_action_due -> NULL. Audited."""
+        with transaction(self.conn):
+            before = self.conn.execute(
+                "SELECT * FROM application WHERE application_id = ?", (application_id,)
+            ).fetchone()
+            if before is None:
+                raise KeyError(application_id)
+            row = self.conn.execute(
+                "UPDATE application SET next_action = NULL, next_action_due = NULL, updated_at = ?"
+                " WHERE application_id = ? RETURNING *",
+                (utc_now_iso(), application_id),
+            ).fetchone()
+            assert row is not None
+            write_audit(
+                self.conn,
+                actor=actor,
+                action="application.update",
+                table_name="application",
+                row_id=application_id,
+                before=before,
+                after=row,
+                source=source,
+            )
+        return Application.from_row(row)
+
+    def delete(self, application_id: int, *, actor: Actor = "user", source: str = "web") -> int:
+        """Delete an application and its events (FK cascade). Returns the deleted event count.
+
+        Every cascaded event gets its own audit row so the ledger keeps each event's content.
+        """
+        with transaction(self.conn):
+            before = self.conn.execute(
+                "SELECT * FROM application WHERE application_id = ?", (application_id,)
+            ).fetchone()
+            if before is None:
+                raise KeyError(application_id)
+            events = self.conn.execute(
+                "SELECT * FROM application_event WHERE application_id = ? ORDER BY event_id",
+                (application_id,),
+            ).fetchall()
+            for ev in events:
+                write_audit(
+                    self.conn,
+                    actor=actor,
+                    action="application_event.delete",
+                    table_name="application_event",
+                    row_id=int(ev["event_id"]),
+                    before=ev,
+                    after=None,
+                    source=source,
+                )
+            count = len(events)
+            self.conn.execute("DELETE FROM application WHERE application_id = ?", (application_id,))
+            write_audit(
+                self.conn,
+                actor=actor,
+                action="application.delete",
+                table_name="application",
+                row_id=application_id,
+                before=before,
+                after=None,
+                source=source,
+            )
+        return count
 
     def list_for_campaign(
         self, campaign_id: int, *, statuses: Sequence[ApplicationStatus] | None = None
@@ -577,6 +812,74 @@ class EventRepo:
             ).fetchone()
             assert existing is not None
             return ApplicationEvent.from_row(existing), False
+
+    def get(self, event_id: int) -> ApplicationEvent | None:
+        r = self.conn.execute(
+            "SELECT * FROM application_event WHERE event_id = ?", (event_id,)
+        ).fetchone()
+        return ApplicationEvent.from_row(r) if r is not None else None
+
+    def update(
+        self,
+        event_id: int,
+        *,
+        event_type: EventType,
+        occurred_at: datetime,
+        summary: str | None,
+        actor: Actor = "user",
+        source: str = "web",
+    ) -> ApplicationEvent:
+        """User edit of one event's type / time / summary. Audited.
+
+        An unknown id raises KeyError; a collision with another event on the UNIQUE key
+        propagates as sqlite3.IntegrityError.
+        """
+        with transaction(self.conn):
+            before = self.conn.execute(
+                "SELECT * FROM application_event WHERE event_id = ?", (event_id,)
+            ).fetchone()
+            if before is None:
+                raise KeyError(event_id)
+            row = self.conn.execute(
+                "UPDATE application_event SET event_type = ?, occurred_at = ?, summary = ?"
+                " WHERE event_id = ? RETURNING *",
+                (event_type.value, to_iso(occurred_at), summary, event_id),
+            ).fetchone()
+            assert row is not None
+            write_audit(
+                self.conn,
+                actor=actor,
+                action="application_event.update",
+                table_name="application_event",
+                row_id=event_id,
+                before=before,
+                after=row,
+                source=source,
+            )
+        return ApplicationEvent.from_row(row)
+
+    def delete(
+        self, event_id: int, *, actor: Actor = "user", source: str = "web"
+    ) -> ApplicationEvent:
+        """Delete one event. Audited. An unknown id raises KeyError."""
+        with transaction(self.conn):
+            before = self.conn.execute(
+                "SELECT * FROM application_event WHERE event_id = ?", (event_id,)
+            ).fetchone()
+            if before is None:
+                raise KeyError(event_id)
+            self.conn.execute("DELETE FROM application_event WHERE event_id = ?", (event_id,))
+            write_audit(
+                self.conn,
+                actor=actor,
+                action="application_event.delete",
+                table_name="application_event",
+                row_id=event_id,
+                before=before,
+                after=None,
+                source=source,
+            )
+        return ApplicationEvent.from_row(before)
 
     def list_for(self, application_id: int) -> list[ApplicationEvent]:
         rows = self.conn.execute(

@@ -4,10 +4,14 @@ import { fetchJson, postJson } from '@/lib/api';
 import type {
   ApplicationDetail,
   ApplicationIn,
+  ApplicationPatch,
   ApplicationRow,
   Campaign,
+  CampaignDeleteOut,
   CampaignIn,
   Dashboard,
+  DeleteOut,
+  EventIn,
   Meta,
   Status,
 } from '@/lib/types';
@@ -24,7 +28,10 @@ export function useCreateCampaign() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: CampaignIn) => postJson<Campaign>('/api/campaigns', body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['campaigns'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['campaigns'] });
+      qc.invalidateQueries({ queryKey: ['meta'] });
+    },
   });
 }
 
@@ -36,6 +43,17 @@ export function useUpdateCampaign() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['campaigns'] });
       qc.invalidateQueries({ queryKey: ['meta'] }); // region pack (tz) may change
+    },
+  });
+}
+
+export function useDeleteCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => fetchJson<CampaignDeleteOut>(`/api/campaigns/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['campaigns'] });
+      qc.invalidateQueries({ queryKey: ['meta'] });
     },
   });
 }
@@ -91,9 +109,52 @@ export function useCreateApplication() {
   );
 }
 
+export function useUpdateApplication(id: number) {
+  return useApplicationMutation((body: ApplicationPatch) =>
+    fetchJson<ApplicationDetail>(`/api/applications/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  );
+}
+
+export function useDeleteApplication(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => fetchJson<DeleteOut>(`/api/applications/${id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      // Drop the row from cached lists right away so the pipeline table doesn't flash the deleted row.
+      qc.setQueriesData<ApplicationRow[]>({ queryKey: ['campaigns'] }, (old) =>
+        Array.isArray(old) ? old.filter((r) => r.application_id !== id) : old,
+      );
+      qc.removeQueries({ queryKey: ['applications', id] });
+      qc.invalidateQueries({ queryKey: ['campaigns'] });
+    },
+  });
+}
+
 export function useAddEvent(id: number) {
+  // event_type stays `string` until pages type their state as EventType; the server validates the enum.
   return useApplicationMutation((body: { event_type: string; occurred_at: string; summary?: string | null }) =>
     postJson<ApplicationDetail>(`/api/applications/${id}/events`, body),
+  );
+}
+
+export function useUpdateEvent(appId: number) {
+  return useApplicationMutation(({ eventId, body }: { eventId: number; body: EventIn }) =>
+    fetchJson<ApplicationDetail>(`/api/applications/${appId}/events/${eventId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+export function useDeleteEvent(appId: number) {
+  return useApplicationMutation((eventId: number) =>
+    fetchJson<ApplicationDetail>(`/api/applications/${appId}/events/${eventId}`, { method: 'DELETE' }),
+  );
+}
+
+export function useClearNextAction(appId: number) {
+  return useApplicationMutation<void>(() =>
+    fetchJson<ApplicationDetail>(`/api/applications/${appId}/next-action`, { method: 'DELETE' }),
   );
 }
 

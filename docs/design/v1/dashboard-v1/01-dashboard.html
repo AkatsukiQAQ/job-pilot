@@ -1,0 +1,2786 @@
+<!DOCTYPE html>
+<!-- Mita JobPilot · C-1 原型 · 自包含单文件（tokens.css v0.1 已内联；字体 Google Fonts；界面运行时 React 经 CDN 加载） -->
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+// GENERATED from dc-runtime/src/*.ts — do not edit. Rebuild with `cd dc-runtime && bun run build`.
+"use strict";
+(() => {
+  var __defProp = Object.defineProperty;
+  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+
+  // src/react.ts
+  function getReact() {
+    const R = window.React;
+    if (!R) throw new Error("dc-runtime: window.React is not available yet");
+    return R;
+  }
+  function getReactDOM() {
+    const RD = window.ReactDOM;
+    if (!RD) throw new Error("dc-runtime: window.ReactDOM is not available yet");
+    return RD;
+  }
+  var h = ((...args) => getReact().createElement(
+    ...args
+  ));
+
+  // src/parse.ts
+  function parseDcDocument(doc) {
+    const dc = doc.querySelector("x-dc");
+    if (!dc) return null;
+    const scriptEl = doc.querySelector("script[data-dc-script]");
+    const { props, preview } = parseDataProps(
+      scriptEl?.getAttribute("data-props") ?? null
+    );
+    return {
+      template: dc.innerHTML,
+      js: scriptEl ? scriptEl.textContent || "" : "",
+      props,
+      preview
+    };
+  }
+  function parseDcText(src) {
+    const openMatch = /<x-dc(?:\s[^>]*)?>/.exec(src);
+    if (!openMatch) return null;
+    const close = src.lastIndexOf("</x-dc>");
+    if (close === -1 || close < openMatch.index) return null;
+    const template = src.slice(openMatch.index + openMatch[0].length, close);
+    const doc = new DOMParser().parseFromString(src, "text/html");
+    const scriptEl = doc.querySelector("script[data-dc-script]");
+    const { props, preview } = parseDataProps(
+      scriptEl?.getAttribute("data-props") ?? null
+    );
+    return {
+      template,
+      js: scriptEl ? scriptEl.textContent || "" : "",
+      props,
+      preview
+    };
+  }
+  function parseDataProps(raw) {
+    if (!raw) return { props: null, preview: null };
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return { props: null, preview: null };
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { props: null, preview: null };
+    }
+    const obj = parsed;
+    const preview = obj.$preview && typeof obj.$preview === "object" ? obj.$preview : null;
+    const rest = {};
+    for (const k of Object.keys(obj)) {
+      if (k[0] !== "$") rest[k] = obj[k];
+    }
+    return { props: Object.keys(rest).length ? rest : null, preview };
+  }
+  function dcNameFromPath(pathname) {
+    let p = pathname || "";
+    try {
+      p = decodeURIComponent(p);
+    } catch {
+    }
+    const base = p.split("/").pop() || "Root";
+    return base.replace(/\.dc\.html$/, "").replace(/\.html?$/, "") || "Root";
+  }
+
+  // src/boot.ts
+  var BASE_CSS = `
+    .sc-placeholder{background:color-mix(in srgb,currentColor 8%,transparent);
+      border:1px solid color-mix(in srgb,currentColor 50%,transparent);
+      border-radius:2px;box-sizing:border-box;overflow:hidden}
+    @keyframes sc-shine{0%{background-position:100% 50%}100%{background-position:0% 50%}}
+    html.sc-dc-streaming .sc-placeholder,
+    html.sc-dc-streaming .sc-interp.sc-missing{position:relative;
+      background:color-mix(in srgb,currentColor 5%,transparent);
+      border-color:transparent}
+    html.sc-dc-streaming .sc-placeholder::before,
+    html.sc-dc-streaming .sc-interp.sc-missing::before{content:'';
+      position:absolute;inset:0;pointer-events:none;
+      background:linear-gradient(90deg,rgba(217,119,87,0) 25%,rgba(247,225,211,.95) 37%,rgba(217,119,87,0) 63%);
+      background-size:400% 100%;animation:sc-shine 1.4s ease infinite}
+    html.sc-dc-streaming .sc-placeholder:nth-child(n+9 of .sc-placeholder)::before,
+    html.sc-dc-streaming .sc-interp.sc-missing:nth-child(n+9 of .sc-interp.sc-missing)::before{animation:none;
+      background:color-mix(in srgb,currentColor 8%,transparent)}
+    .sc-placeholder-error{padding:4px 8px;font:11px/1.4 ui-monospace,monospace;
+      color:color-mix(in srgb,currentColor 70%,transparent);word-break:break-word}
+    .sc-interp.sc-missing{display:inline-block;width:2em;height:1em;overflow:hidden;
+      vertical-align:text-bottom;background:rgba(255,255,255,.3);border:1px solid rgba(0,0,0,.5);
+      border-radius:2px;box-sizing:border-box;color:transparent;
+      user-select:none}
+    .sc-interp.sc-unresolved{font-family:ui-monospace,monospace;font-size:.85em;
+      color:color-mix(in srgb,currentColor 50%,transparent);
+      background:color-mix(in srgb,currentColor 10%,transparent);border-radius:3px;
+      padding:0 3px}
+    .sc-host.sc-has-error{position:relative}
+    .sc-logic-error{position:absolute;top:8px;left:8px;z-index:2147483647;max-width:60ch;
+      padding:6px 10px;background:#b00020;color:#fff;font:12px/1.4 ui-monospace,monospace;
+      border-radius:4px;white-space:pre-wrap;pointer-events:none}
+    /* Mirrors PRINT_BASELINE_CSS in apps/web deck-stage-export.ts \u2014 keep both
+       in sync until dc-runtime regains a build step. */
+    @media print {
+      @page { margin: 0.5cm; }
+      figure, table { break-inside: avoid; }
+      #dc-root, #dc-root > .sc-host { height: auto; }
+      *, *::before, *::after {
+        print-color-adjust: exact; -webkit-print-color-adjust: exact;
+        backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+        animation-delay: -99s !important; animation-duration: .001s !important;
+        animation-iteration-count: 1 !important; animation-fill-mode: both !important;
+        animation-play-state: running !important; transition-duration: 0s !important;
+      }
+    }
+  `;
+  var FULL_PAGE_CSS = "html,body{height:100%;margin:0}#dc-root,#dc-root>.sc-host{height:100%}";
+  function rootNameForDocument(doc, loc) {
+    let bootPath = loc.pathname || "";
+    if (!/\.dc\.html?$/i.test(safeDecode(bootPath))) {
+      try {
+        bootPath = new URL(doc.baseURI || "/").pathname;
+      } catch {
+      }
+    }
+    return dcNameFromPath(bootPath);
+  }
+  function safeDecode(s) {
+    try {
+      return decodeURIComponent(s);
+    } catch {
+      return s;
+    }
+  }
+  function boot(runtime, doc = document) {
+    const parsed = parseDcDocument(doc);
+    if (!parsed) return null;
+    const React = getReact();
+    const rootName = rootNameForDocument(doc, location);
+    runtime.markFetched(rootName);
+    runtime.setRootName(rootName);
+    runtime.adoptParsed(rootName, parsed);
+    if (!window.__resources) {
+      fetch(location.href).then((res) => res.ok ? res.text() : "").then((t) => {
+        const raw = t ? parseDcText(t) : null;
+        if (raw?.template) runtime.updateHtml(rootName, raw.template);
+      }).catch(() => {
+      });
+    }
+    const dc = doc.querySelector("x-dc");
+    const hostEl = doc.createElement("div");
+    hostEl.id = "dc-root";
+    dc.replaceWith(hostEl);
+    if (!parsed.preview) {
+      const s = doc.createElement("style");
+      s.textContent = FULL_PAGE_CSS;
+      doc.head.appendChild(s);
+    }
+    const Root = runtime.getDC(rootName);
+    const entry = runtime.registry.get(rootName);
+    function StandaloneRoot() {
+      const [, setTick] = React.useState(0);
+      React.useEffect(() => {
+        const sub = () => setTick((n) => n + 1);
+        entry.subs.add(sub);
+        return () => {
+          entry.subs.delete(sub);
+        };
+      }, []);
+      const defaults = React.useMemo(() => {
+        const d = {};
+        for (const k in entry.propsMeta || {}) {
+          const v = entry.propsMeta?.[k]?.default;
+          if (v !== void 0) d[k] = v;
+        }
+        return d;
+      }, [entry.propsMeta]);
+      return h(Root, { ...defaults, ...entry.propOverrides || {} });
+    }
+    const ReactDOM = getReactDOM();
+    if (ReactDOM.createRoot)
+      ReactDOM.createRoot(hostEl).render(h(StandaloneRoot));
+    else ReactDOM.render(h(StandaloneRoot), hostEl);
+    return rootName;
+  }
+
+  // src/expr.ts
+  var IDENT_RE = /^[A-Za-z_$][A-Za-z0-9_$]*/;
+  var NUMBER_RE = /^-?\d+(\.\d+)?$/;
+  function resolve(vals, src) {
+    const expr = String(src).trim();
+    if (!expr) return void 0;
+    if (expr[0] === "(" && expr[expr.length - 1] === ")" && parensWrapWhole(expr)) {
+      return resolve(vals, expr.slice(1, -1));
+    }
+    const eq = findTopLevelEquality(expr);
+    if (eq) {
+      const lv = resolve(vals, expr.slice(0, eq.index));
+      const rv = resolve(vals, expr.slice(eq.index + eq.op.length));
+      switch (eq.op) {
+        case "===":
+          return lv === rv;
+        case "!==":
+          return lv !== rv;
+        case "==":
+          return lv == rv;
+        default:
+          return lv != rv;
+      }
+    }
+    if (expr[0] === "!") return !resolve(vals, expr.slice(1));
+    if (expr === "true") return true;
+    if (expr === "false") return false;
+    if (expr === "null") return null;
+    if (expr === "undefined") return void 0;
+    if (NUMBER_RE.test(expr)) return Number(expr);
+    if (expr.length >= 2 && (expr[0] === '"' || expr[0] === "'") && expr[expr.length - 1] === expr[0]) {
+      return expr.slice(1, -1);
+    }
+    return resolvePath(vals, expr);
+  }
+  function parensWrapWhole(expr) {
+    let depth = 0;
+    for (let i = 0; i < expr.length - 1; i++) {
+      if (expr[i] === "(") depth++;
+      else if (expr[i] === ")") {
+        depth--;
+        if (depth === 0) return false;
+      }
+    }
+    return true;
+  }
+  function findTopLevelEquality(expr) {
+    let depth = 0;
+    for (let i = 0; i < expr.length; i++) {
+      const c = expr[i];
+      if (c === "[" || c === "(") depth++;
+      else if (c === "]" || c === ")") depth--;
+      else if (depth === 0 && (c === "=" || c === "!") && expr[i + 1] === "=") {
+        if (i > 0 && (expr[i - 1] === "=" || expr[i - 1] === "!")) continue;
+        if (!expr.slice(0, i).trim()) continue;
+        const op = expr[i + 2] === "=" ? c + "==" : c + "=";
+        return { index: i, op };
+      }
+    }
+    return null;
+  }
+  function resolvePath(vals, expr) {
+    const head = expr.match(IDENT_RE);
+    if (!head) return void 0;
+    let cur = vals == null ? void 0 : vals[head[0]];
+    let i = head[0].length;
+    while (i < expr.length) {
+      if (expr[i] === ".") {
+        const m = expr.slice(i + 1).match(IDENT_RE) || expr.slice(i + 1).match(/^\d+/);
+        if (!m) return void 0;
+        cur = cur == null ? void 0 : cur[m[0]];
+        i += 1 + m[0].length;
+      } else if (expr[i] === "[") {
+        let depth = 1;
+        let j = i + 1;
+        while (j < expr.length && depth > 0) {
+          if (expr[j] === "[") depth++;
+          else if (expr[j] === "]") {
+            depth--;
+            if (depth === 0) break;
+          }
+          j++;
+        }
+        if (depth !== 0) return void 0;
+        const key = resolve(vals, expr.slice(i + 1, j));
+        cur = cur == null ? void 0 : cur[key];
+        i = j + 1;
+      } else {
+        return void 0;
+      }
+    }
+    return cur;
+  }
+
+  // src/encode.ts
+  var CAMEL_ATTR = "sc-camel-";
+  var INLINE_TEXT_TAGS = new Set(
+    "a abbr b bdi bdo br cite code del dfn em i ins kbd mark q s samp small span strike strong sub sup u var wbr".split(
+      " "
+    )
+  );
+  var RAW_WRAP = {
+    select: "sc-raw-select",
+    table: "sc-raw-table",
+    tbody: "sc-raw-tbody",
+    thead: "sc-raw-thead",
+    tfoot: "sc-raw-tfoot",
+    tr: "sc-raw-tr",
+    td: "sc-raw-td",
+    th: "sc-raw-th",
+    caption: "sc-raw-caption"
+  };
+  var RAW_UNWRAP = Object.fromEntries(
+    Object.entries(RAW_WRAP).map(([k, v]) => [v, k])
+  );
+  var EVENT_MAP = {
+    onclick: "onClick",
+    onchange: "onChange",
+    oninput: "onInput",
+    onsubmit: "onSubmit",
+    onkeydown: "onKeyDown",
+    onkeyup: "onKeyUp",
+    onkeypress: "onKeyPress",
+    onmousedown: "onMouseDown",
+    onmouseup: "onMouseUp",
+    onmouseenter: "onMouseEnter",
+    onmouseleave: "onMouseLeave",
+    onfocus: "onFocus",
+    onblur: "onBlur",
+    ondoubleclick: "onDoubleClick",
+    oncontextmenu: "onContextMenu",
+    onmousemove: "onMouseMove",
+    onmouseover: "onMouseOver",
+    onmouseout: "onMouseOut",
+    onpointerdown: "onPointerDown",
+    onpointerup: "onPointerUp",
+    onpointermove: "onPointerMove",
+    onpointerenter: "onPointerEnter",
+    onpointerleave: "onPointerLeave",
+    onpointercancel: "onPointerCancel",
+    onpointerover: "onPointerOver",
+    onpointerout: "onPointerOut",
+    ongotpointercapture: "onGotPointerCapture",
+    onlostpointercapture: "onLostPointerCapture",
+    ontouchstart: "onTouchStart",
+    ontouchend: "onTouchEnd",
+    ontouchmove: "onTouchMove",
+    ontouchcancel: "onTouchCancel",
+    ondragstart: "onDragStart",
+    ondragend: "onDragEnd",
+    ondragenter: "onDragEnter",
+    ondragleave: "onDragLeave",
+    ondragover: "onDragOver",
+    onanimationstart: "onAnimationStart",
+    onanimationend: "onAnimationEnd",
+    onanimationiteration: "onAnimationIteration",
+    ontransitionend: "onTransitionEnd"
+  };
+  var ATTRS = `(?:[^>"']|"[^"]*"|'[^']*')*`;
+  var IMPORT_SELF_CLOSE_RE = new RegExp(
+    "<(x-import|dc-import)(" + ATTRS + ")/>",
+    "gi"
+  );
+  var CAMEL_ATTR_RE = /(\s)([a-z]+[A-Z][A-Za-z0-9]*)(\s*=)/g;
+  function encodeCamelAttrs(html) {
+    return html.replace(
+      CAMEL_ATTR_RE,
+      (_, sp, name, eq) => sp + CAMEL_ATTR + name.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase()) + eq
+    );
+  }
+  function encodeCase(html) {
+    html = html.replace(
+      IMPORT_SELF_CLOSE_RE,
+      (_, t, a) => "<" + t + a + "></" + t + ">"
+    );
+    html = html.replace(/<helmet(\s|>)/gi, "<sc-helmet$1");
+    html = html.replace(/<\/helmet\s*>/gi, "</sc-helmet>");
+    html = encodeCamelAttrs(html);
+    for (const [real, alias] of Object.entries(RAW_WRAP)) {
+      html = html.replace(
+        new RegExp("(</?)" + real + "(?=[\\s>])", "gi"),
+        "$1" + alias
+      );
+    }
+    return html;
+  }
+  function kebabToCamel(s) {
+    return s.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+  }
+  function cssToObj(css) {
+    const o = {};
+    for (const decl of css.split(";")) {
+      const i = decl.indexOf(":");
+      if (i < 0) continue;
+      const prop = decl.slice(0, i).trim();
+      o[prop.startsWith("--") ? prop : kebabToCamel(prop)] = decl.slice(i + 1).trim();
+    }
+    return o;
+  }
+  function compileAttr(raw) {
+    const whole = raw.match(/^\s*\{\{([\s\S]+?)\}\}\s*$/);
+    if (whole) {
+      const path = whole[1];
+      return (vals) => resolve(vals, path);
+    }
+    if (raw.includes("{{")) {
+      const parts = raw.split(/\{\{([\s\S]+?)\}\}/g);
+      return (vals) => parts.map((s, i) => i & 1 ? resolve(vals, s) ?? "" : s).join("");
+    }
+    return () => raw;
+  }
+
+  // src/compile.ts
+  function collectProps(node, kind, host) {
+    const propGetters = [];
+    const pseudoClasses = [];
+    let hintSize = null;
+    for (const { name, value } of [...node.attributes]) {
+      if (name === "sc-name" || name === "data-dc-tpl") continue;
+      let key = name;
+      if (key.startsWith(CAMEL_ATTR))
+        key = kebabToCamel(key.slice(CAMEL_ATTR.length));
+      if (key === "hint-size") {
+        hintSize = value;
+        continue;
+      }
+      if (key.startsWith("style-")) {
+        pseudoClasses.push(host.pseudoClass(key.slice(6), value));
+        continue;
+      }
+      if (kind !== "dom") {
+        if (key.includes("-") && !(kind === "x-import" && (key.startsWith("aria-") || key.startsWith("data-"))))
+          key = kebabToCamel(key);
+      } else {
+        if (key === "class") key = "className";
+        else if (key === "for") key = "htmlFor";
+        else if (key.startsWith("on"))
+          key = EVENT_MAP[key] || "on" + key[2].toUpperCase() + key.slice(3);
+      }
+      propGetters.push([key, compileAttr(value)]);
+    }
+    return { propGetters, pseudoClasses, hintSize };
+  }
+  var HOST_STYLE_PROPS = /* @__PURE__ */ new Set([
+    "position",
+    "left",
+    "right",
+    "top",
+    "bottom",
+    "inset",
+    "width",
+    "height",
+    "z-index",
+    "transform"
+  ]);
+  function hostPositionStyle(style) {
+    const all = typeof style === "string" ? cssToObj(style) : style != null && typeof style === "object" ? style : null;
+    if (!all) return void 0;
+    const out = {};
+    for (const [k, v] of Object.entries(all)) {
+      const kebab = k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
+      if (HOST_STYLE_PROPS.has(kebab)) out[k] = v;
+    }
+    return Object.keys(out).length ? out : void 0;
+  }
+  function compileTemplate(html, host) {
+    const tpl = document.createElement("template");
+    //! nosemgrep: direct-inner-html-assignment
+    tpl.innerHTML = encodeCase(html);
+    let tplN = 0;
+    (function stamp(node) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        node.setAttribute("data-dc-tpl", String(tplN++));
+      }
+      for (const c of node.childNodes) stamp(c);
+    })(tpl.content);
+    const builders = walkChildren(tpl.content, host);
+    const render = ((vals, ctx) => builders.map((b, i) => b(vals || {}, ctx, i)));
+    render.__annotated = tpl.innerHTML;
+    return render;
+  }
+  function walkChildren(node, host) {
+    return [...node.childNodes].map((c) => walk(c, host)).filter((b) => b != null);
+  }
+  var SLIDE_ID_VALUE_RE = /^[0-9a-f]{8}$/;
+  var DECK_CONTROL_FLOW_RE = /^(sc-if|sc-for|sc-else|dc-import|x-import)$/;
+  var DECK_AUX_RE = /^(template|script|style|sc-helmet|helmet)$/;
+  function isDeckMountTag(el) {
+    if (el.localName === "deck-stage") return true;
+    return el.localName === "x-import" && (el.getAttribute("component-from-global-scope") || "") === "deck-stage";
+  }
+  function walkDeckChildren(el, host) {
+    const pairs = [...el.childNodes].map((c) => ({ c, b: walk(c, host) })).filter((p) => p.b !== null);
+    const kids = pairs.map((p) => p.b);
+    const seen = /* @__PURE__ */ new Set();
+    const wsSeen = /* @__PURE__ */ new Map();
+    const keys = [];
+    const nextSlideId = new Array(pairs.length);
+    {
+      let upcoming = null;
+      for (let j = pairs.length - 1; j >= 0; j--) {
+        const n = pairs[j].c;
+        if (n.nodeType === Node.ELEMENT_NODE) {
+          const t = n.localName;
+          upcoming = !DECK_AUX_RE.test(t) && !DECK_CONTROL_FLOW_RE.test(t) ? n.getAttribute("data-om-slide-id") : null;
+        }
+        nextSlideId[j] = upcoming;
+      }
+    }
+    for (let j = 0; j < pairs.length; j++) {
+      const { c } = pairs[j];
+      if (c.nodeType === Node.TEXT_NODE) {
+        if ((c.nodeValue ?? "").trim() === "") {
+          const base = nextSlideId[j] ? "omid-ws:" + nextSlideId[j] : "omid-ws:aux";
+          const n = wsSeen.get(base) ?? 0;
+          wsSeen.set(base, n + 1);
+          keys.push(n === 0 ? base : base + ":" + n);
+          continue;
+        }
+        return { kids, keys: null };
+      }
+      if (c.nodeType !== Node.ELEMENT_NODE) {
+        keys.push(j);
+        continue;
+      }
+      const child = c;
+      const tag = child.localName;
+      if (DECK_AUX_RE.test(tag)) {
+        keys.push(j);
+        continue;
+      }
+      if (DECK_CONTROL_FLOW_RE.test(tag)) return { kids, keys: null };
+      const v = child.getAttribute("data-om-slide-id");
+      if (!v || !SLIDE_ID_VALUE_RE.test(v) || seen.has(v)) {
+        return { kids, keys: null };
+      }
+      seen.add(v);
+      keys.push("omid:" + v);
+    }
+    return { kids, keys };
+  }
+  function renderDeckKids(kids, kidKeys, vals, ctx) {
+    return kids.map((b, j) => {
+      const k = kidKeys ? kidKeys[j] : j;
+      const out = b(vals, ctx, k);
+      return kidKeys != null && typeof out === "string" ? h(getReact().Fragment, { key: k }, out) : out;
+    });
+  }
+  function walk(node, host) {
+    if (node.nodeType === Node.TEXT_NODE) return walkText(node);
+    if (node.nodeType !== Node.ELEMENT_NODE) return null;
+    const el = node;
+    const tag = el.tagName.toLowerCase();
+    if (tag === "sc-for") return walkFor(el, host);
+    if (tag === "sc-if") return walkIf(el, host);
+    if (tag === "x-import") return walkXImport(el, host);
+    if (tag === "sc-helmet") return host.helmet(el);
+    if (tag === "dc-import") return walkComponent(el, host);
+    return walkElement(el, host);
+  }
+  var warnedHoles = /* @__PURE__ */ new Set();
+  function warnUnresolved(ctx, what) {
+    const key = (ctx?.__name || "?") + "\0" + what;
+    if (warnedHoles.has(key)) return;
+    warnedHoles.add(key);
+    console.warn("[dc-runtime] " + (ctx?.__name || "template") + ": " + what);
+  }
+  function walkText(node) {
+    const txt = node.nodeValue ?? "";
+    if (!txt.includes("{{")) {
+      if (!txt.trim() && !txt.includes(" ")) return null;
+      return () => txt;
+    }
+    const parts = txt.split(/\{\{([\s\S]+?)\}\}/g);
+    return (vals, ctx, key) => h(
+      getReact().Fragment,
+      { key },
+      ...parts.map((p, i) => {
+        if (!(i & 1)) return p;
+        const v = resolve(vals, p);
+        if (v === void 0) {
+          if (!ctx?.__streamingNow) {
+            if (document.body?.hasAttribute("data-dc-editor-on")) {
+              return h(
+                "span",
+                { key: i, className: "sc-interp sc-unresolved" },
+                "{{ " + p.trim() + " }}"
+              );
+            }
+            warnUnresolved(
+              ctx,
+              "{{ " + p.trim() + " }} never resolved \u2014 rendered as empty"
+            );
+            return null;
+          }
+          return h(
+            "span",
+            { key: i, className: "sc-interp sc-missing" },
+            p.trim()
+          );
+        }
+        if (getReact().isValidElement(v) || Array.isArray(v)) {
+          return h(getReact().Fragment, { key: i }, v);
+        }
+        if (v === null || typeof v === "boolean") return null;
+        return h("span", { key: i, className: "sc-interp" }, String(v));
+      })
+    );
+  }
+  function walkFor(el, host) {
+    const listGet = compileAttr(el.getAttribute("list") || "");
+    const asName = el.getAttribute("as") || "item";
+    const hintN = parseInt(el.getAttribute("hint-placeholder-count") || "0", 10);
+    const kids = walkChildren(el, host);
+    const listSrc = el.getAttribute("list") || "";
+    return (vals, ctx, key) => {
+      let list = listGet(vals);
+      if (!Array.isArray(list)) {
+        if (!ctx?.__streamingNow) {
+          if (list !== void 0 && list !== null) {
+            warnUnresolved(
+              ctx,
+              'sc-for list="' + listSrc + '" is not an array (' + typeof list + ")"
+            );
+          }
+          list = [];
+        } else {
+          list = hintN > 0 ? Array(hintN).fill(void 0) : [];
+        }
+      }
+      return h(
+        getReact().Fragment,
+        { key },
+        list.map((item, i) => {
+          const sub = { ...vals, [asName]: item, $index: i };
+          return h(
+            getReact().Fragment,
+            { key: i },
+            kids.map((b, j) => b(sub, ctx, j))
+          );
+        })
+      );
+    };
+  }
+  function walkIf(el, host) {
+    const valGet = compileAttr(el.getAttribute("value") || "");
+    const hintRaw = el.getAttribute("hint-placeholder-val");
+    const hintGet = hintRaw != null ? compileAttr(hintRaw) : null;
+    const kids = walkChildren(el, host);
+    return (vals, ctx, key) => {
+      let v = valGet(vals);
+      if (v === void 0 && hintGet && ctx?.__streamingNow) v = hintGet(vals);
+      return v ? h(
+        getReact().Fragment,
+        { key },
+        kids.map((b, j) => b(vals, ctx, j))
+      ) : null;
+    };
+  }
+  function walkComponent(el, host) {
+    const name = el.getAttribute("name") || el.getAttribute("component") || "";
+    el.removeAttribute("name");
+    el.removeAttribute("component");
+    const tplId = el.getAttribute("data-dc-tpl");
+    const styleRaw = el.getAttribute("style");
+    el.removeAttribute("style");
+    const styleGet = styleRaw != null ? compileAttr(styleRaw) : null;
+    const { propGetters, hintSize } = collectProps(el, "dc-import", host);
+    const kids = walkChildren(el, host);
+    return (vals, ctx, key) => {
+      const props = {
+        key,
+        __hintSize: hintSize,
+        __tplId: tplId,
+        __hostStyle: styleGet ? hostPositionStyle(styleGet(vals)) : void 0
+      };
+      for (const [k, g] of propGetters) {
+        const v = g(vals);
+        if (k === "dcProps") {
+          if (v && typeof v === "object") Object.assign(props, v);
+          continue;
+        }
+        props[k] = v;
+      }
+      if (kids.length) props.children = kids.map((b, j) => b(vals, ctx, j));
+      return h(host.component(name), props);
+    };
+  }
+  function walkXImport(el, host) {
+    const globalNameGet = compileAttr(
+      el.getAttribute("component-from-global-scope") || ""
+    );
+    const exportNameGet = compileAttr(
+      el.getAttribute("component") || el.getAttribute("name") || ""
+    );
+    const fromRaw = el.getAttribute("from") || (el.getAttribute("component-from-global-scope") ? "" : el.getAttribute("src") || el.getAttribute("import") || "");
+    const urls = fromRaw.trim() ? fromRaw.trim().split(/\s+/) : [];
+    const url = urls.length ? urls[urls.length - 1] : "";
+    const kindOf = (u) => /\.(jsx|tsx)(\?|#|$)/i.test(u) ? "jsx" : "js";
+    const tplId = el.getAttribute("data-dc-tpl");
+    const styleRaw = el.getAttribute("style");
+    el.removeAttribute("style");
+    const styleGet = styleRaw != null ? compileAttr(styleRaw) : null;
+    const wrap = tplId != null || styleGet != null;
+    const { propGetters, hintSize } = collectProps(el, "x-import", host);
+    const hasContent = el.children.length > 0 || !!(el.textContent || "").trim();
+    const deckKeyed = hasContent && isDeckMountTag(el) ? walkDeckChildren(el, host) : null;
+    const kids = deckKeyed ? deckKeyed.kids : hasContent ? walkChildren(el, host) : [];
+    const kidKeys = deckKeyed?.keys ?? null;
+    const urlBindable = fromRaw.includes("{{");
+    if (urls.length && !urlBindable) {
+      let prev;
+      for (const u of urls) prev = host.loadExternal(kindOf(u), u, prev);
+    }
+    const evalName = (g, vals) => {
+      const v = g(vals);
+      const s = v == null ? "" : String(v);
+      return s.includes("{{") ? "" : s;
+    };
+    return (vals, ctx, key) => {
+      const globalName = evalName(globalNameGet, vals);
+      const name = globalName || evalName(exportNameGet, vals);
+      const C = !name || urlBindable ? null : globalName ? host.resolveExternalGlobal(url, globalName) : host.resolveExternal(url, name);
+      const hostStyle = styleGet ? hostPositionStyle(styleGet(vals)) : void 0;
+      const wrapper = wrap ? {
+        key,
+        className: "sc-host-x",
+        "data-dc-tpl": tplId,
+        style: hostStyle || { display: "contents" }
+      } : null;
+      if (!C) {
+        const error = urlBindable ? "x-import `from` cannot contain {{ \u2026 }} \u2014 module URLs are resolved at parse time; use a literal URL" : host.resolveExternalError(url, name);
+        const ph = host.placeholder({
+          key: wrapper ? void 0 : key,
+          name,
+          hintSize,
+          error
+        });
+        return wrapper ? h("div", wrapper, ph) : ph;
+      }
+      const props = wrapper ? {} : { key };
+      let unresolvedHole = false;
+      for (const [k, g] of propGetters) {
+        if (k === "component" || k === "componentFromGlobalScope" || k === "from") {
+          continue;
+        }
+        const v = g(vals);
+        if (v === void 0) unresolvedHole = true;
+        if (k === "dcProps") {
+          if (v && typeof v === "object") Object.assign(props, v);
+          continue;
+        }
+        props[k] = v;
+      }
+      if (unresolvedHole && ctx?.__htmlStreamingNow) {
+        const ph = host.placeholder({
+          key: wrapper ? void 0 : key,
+          name,
+          hintSize,
+          error: null
+        });
+        return wrapper ? h("div", wrapper, ph) : ph;
+      }
+      if (kids.length) {
+        props.children = renderDeckKids(kids, kidKeys, vals, ctx);
+      }
+      return wrapper ? h("div", wrapper, h(C, props)) : h(C, props);
+    };
+  }
+  function contentKey(el) {
+    const clone = el.cloneNode(true);
+    for (const d of clone.querySelectorAll("*")) {
+      while (d.attributes.length) d.removeAttribute(d.attributes[0].name);
+    }
+    const s = clone.innerHTML;
+    let h2 = 5381;
+    for (let i = 0; i < s.length; i++) h2 = (h2 << 5) + h2 + s.charCodeAt(i) | 0;
+    return s.length + "." + (h2 >>> 0).toString(36);
+  }
+  var NEVER_CONTENT_KEYED = new Set(
+    "script style textarea option title select canvas iframe video audio".split(
+      " "
+    )
+  );
+  var NOT_INLINE_SELECTOR = ":not(" + [...INLINE_TEXT_TAGS].join(",") + ")";
+  function walkElement(el, host) {
+    const realTag = RAW_UNWRAP[el.localName] || el.localName;
+    const tplId = el.getAttribute("data-dc-tpl");
+    const inlineOnly = el.childNodes.length > 0 && !NEVER_CONTENT_KEYED.has(realTag) && el.querySelector(NOT_INLINE_SELECTOR) === null;
+    const keySuffix = inlineOnly ? "|" + contentKey(el) : "";
+    const { propGetters, pseudoClasses } = collectProps(el, "dom", host);
+    const deckKeyed = isDeckMountTag(el) ? walkDeckChildren(el, host) : null;
+    const kids = deckKeyed ? deckKeyed.kids : walkChildren(el, host);
+    const kidKeys = deckKeyed?.keys ?? null;
+    return (vals, ctx, key) => {
+      const props = {
+        key: key + keySuffix,
+        "data-dc-tpl": tplId
+      };
+      for (const [k, g] of propGetters) {
+        let v = g(vals);
+        if (k === "style" && typeof v === "string") v = cssToObj(v);
+        if ((k === "value" || k === "checked") && v === void 0) {
+          v = k === "checked" ? false : "";
+        }
+        props[k] = v;
+      }
+      if (pseudoClasses.length) {
+        props.className = [props.className, ...pseudoClasses].filter(Boolean).join(" ");
+      }
+      return h(realTag, props, ...renderDeckKids(kids, kidKeys, vals, ctx));
+    };
+  }
+
+  // src/logic.ts
+  var StreamableLogic = class {
+    constructor(props) {
+      __publicField(this, "props");
+      __publicField(this, "state", {});
+      /** Back-pointer to the wrapper component, installed after construction. */
+      __publicField(this, "__host");
+      this.props = props || {};
+    }
+    setState(update, cb) {
+      this.__host && this.__host.__setLogicState(update, cb);
+    }
+    forceUpdate() {
+      this.__host && this.__host.forceUpdate();
+    }
+    componentDidMount() {
+    }
+    componentDidUpdate(_prevProps) {
+    }
+    componentWillUnmount() {
+    }
+    /** The flat object the template renders against (merged over props). */
+    renderVals() {
+      return {};
+    }
+  };
+  function evalDcLogic(src) {
+    //! nosemgrep: eval-and-function-constructor
+    const fn = new Function(
+      "DCLogic",
+      "StreamableLogic",
+      "React",
+      src + '\n;return (typeof Component!=="undefined"&&Component)||undefined;'
+    );
+    return fn(StreamableLogic, StreamableLogic, getReact());
+  }
+
+  // src/component.ts
+  function shallowEqual(a, b) {
+    if (!b) return false;
+    const ak = Object.keys(a).filter((k) => k !== "children");
+    const bk = Object.keys(b).filter((k) => k !== "children");
+    if (ak.length !== bk.length) return false;
+    for (const k of ak) if (a[k] !== b[k]) return false;
+    return true;
+  }
+  function Placeholder({
+    name,
+    hintSize,
+    streaming,
+    error
+  }) {
+    const [w, hgt] = (hintSize || "100%,60px").split(",");
+    return h(
+      "div",
+      {
+        className: "sc-placeholder" + (streaming ? " sc-streaming" : ""),
+        style: { width: w.trim(), height: hgt && hgt.trim() },
+        title: name
+      },
+      error ? h(
+        "div",
+        { className: "sc-placeholder-error" },
+        (name ? name + ": " : "") + error
+      ) : null
+    );
+  }
+  function hintToMin(hint) {
+    if (!hint) return void 0;
+    const [w, hgt] = hint.split(",");
+    return { minWidth: w.trim(), minHeight: hgt && hgt.trim() };
+  }
+  function createComponentFactory(registry, ensureFetched) {
+    const React = getReact();
+    const AncestorContext = React.createContext([]);
+    class StreamableComponent extends React.Component {
+      constructor(props) {
+        super(props);
+        __publicField(this, "__name");
+        __publicField(this, "__sub");
+        __publicField(this, "__needsDidMount", false);
+        /** Snapshot of the registry's streaming flags taken at render time —
+         *  builders read it off the RenderCtx (this) to pick placeholder vs
+         *  render-nothing for unresolved values. */
+        __publicField(this, "__streamingNow", false);
+        __publicField(this, "__htmlStreamingNow", false);
+        /** When a construct throws, remember the (class, registry.ver, props)
+         *  triple so render-time reconcile doesn't re-attempt it on every parent
+         *  re-render. A registry bump (new class, template, external module
+         *  resolving via bumpAll) changes `ver` and breaks the memo so an
+         *  env-dependent constructor can self-heal. */
+        __publicField(this, "__failedLogic", null);
+        __publicField(this, "__failedUserProps", null);
+        __publicField(this, "__failedVer", -1);
+        /** Per-instance constructor error — kept here (not on the registry entry)
+         *  so one instance's successful construct can't hide a sibling's failure,
+         *  and a construct can never wipe an eval error `updateJs` recorded on
+         *  `r.logicError`. */
+        __publicField(this, "__ctorError", null);
+        __publicField(this, "logic");
+        this.__name = props.__name;
+        this.state = { __v: 0, __err: null };
+        this.__sub = () => {
+          if (this.state.__err) this.setState({ __err: null });
+          this.forceUpdate();
+        };
+        this.__makeLogic(registry.get(this.__name).Logic, null);
+        ensureFetched(this.__name);
+      }
+      /** Error-boundary hook: a render crash anywhere in this DC's subtree
+       *  (its own template, an x-import'd component, a child DC without its
+       *  own deeper boundary) lands here instead of unmounting the page. */
+      static getDerivedStateFromError(e) {
+        return { __err: e instanceof Error && e.message ? e.message : String(e) };
+      }
+      componentDidCatch(e, info) {
+        console.error(
+          "[dc-runtime] render error in <" + this.__name + ">:",
+          e,
+          info?.componentStack || ""
+        );
+      }
+      /** Instantiate the logic class (or the no-op base) and adopt `prevState`
+       *  over its initial state — used both at mount and on hot-swap. */
+      __makeLogic(Logic, prevState) {
+        const L = Logic || StreamableLogic;
+        try {
+          this.logic = new L(this.__userProps());
+          this.__failedLogic = null;
+          this.__failedUserProps = null;
+          this.__ctorError = null;
+        } catch (e) {
+          console.error(e);
+          this.__failedLogic = Logic;
+          this.__failedUserProps = this.__userProps();
+          this.__failedVer = registry.get(this.__name).ver;
+          this.__ctorError = this.__name + ": " + (e instanceof Error && e.message ? e.message : String(e));
+          this.logic = new StreamableLogic(
+            this.__userProps()
+          );
+        }
+        this.logic.__host = this;
+        if (prevState)
+          this.logic.state = { ...this.logic.state || {}, ...prevState };
+      }
+      /** The props the author's logic + template see — internal __-prefixed
+       *  wiring stripped. */
+      __userProps() {
+        const { __name, __hintSize, __tplId, __hostStyle, ...rest } = this.props;
+        return rest;
+      }
+      __setLogicState(update, cb) {
+        const prev = this.logic.state;
+        const patch = typeof update === "function" ? update(prev) : update;
+        this.logic.state = { ...prev, ...patch };
+        this.setState((s) => ({ __v: s.__v + 1 }), cb);
+      }
+      /** Swap the logic instance when the registry's Logic class changed
+       *  (streaming completion, hot reload). State carries over; didMount
+       *  re-fires after the swap commits so refs exist. */
+      __reconcileLogic() {
+        const r = registry.get(this.__name);
+        const Next = r.Logic;
+        const Cur = this.logic.constructor;
+        if (Next === Cur || !Next && Cur === StreamableLogic || Next === this.__failedLogic && r.ver === this.__failedVer && shallowEqual(this.__userProps(), this.__failedUserProps)) {
+          return;
+        }
+        if (!this.__needsDidMount) {
+          try {
+            this.logic.componentWillUnmount();
+          } catch (e) {
+            console.error(e);
+          }
+        }
+        this.__makeLogic(Next, this.logic.state);
+        this.__needsDidMount = true;
+      }
+      componentDidMount() {
+        registry.get(this.__name).subs.add(this.__sub);
+        try {
+          this.logic.componentDidMount();
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      componentDidUpdate(prevProps) {
+        this.logic.props = this.__userProps();
+        if (this.__needsDidMount) {
+          if (this.state.__err || !registry.get(this.__name).tpl) return;
+          this.__needsDidMount = false;
+          try {
+            this.logic.componentDidMount();
+          } catch (e) {
+            console.error(e);
+          }
+        } else {
+          try {
+            this.logic.componentDidUpdate(prevProps);
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+      componentWillUnmount() {
+        registry.get(this.__name).subs.delete(this.__sub);
+        if (!this.__needsDidMount) {
+          try {
+            this.logic.componentWillUnmount();
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+      render() {
+        const r = registry.get(this.__name);
+        const cls = "sc-host" + (r.htmlStreaming ? " sc-streaming-html" : "") + (r.jsStreaming ? " sc-streaming-js" : "");
+        const hintStyle = r.htmlStreaming ? hintToMin(this.props.__hintSize) : void 0;
+        const hostStyle = this.props.__hostStyle || hintStyle ? { ...hintStyle || {}, ...this.props.__hostStyle || {} } : void 0;
+        const hostBase = {
+          className: cls,
+          style: hostStyle,
+          "data-sc-name": this.__name,
+          "data-dc-tpl": this.props.__tplId
+        };
+        const chain = Array.isArray(this.context) ? this.context : [];
+        if (chain.includes(this.__name)) {
+          const cycle = [
+            ...chain.slice(chain.indexOf(this.__name)),
+            this.__name
+          ].join(" \u2192 ");
+          return h(
+            "div",
+            { ...hostBase, className: cls + " sc-has-error" },
+            h(Placeholder, {
+              name: this.__name,
+              hintSize: this.props.__hintSize,
+              error: "circular import: " + cycle
+            })
+          );
+        }
+        if (this.state.__err) {
+          return h(
+            "div",
+            { ...hostBase, className: cls + " sc-has-error" },
+            h(
+              "div",
+              { className: "sc-logic-error", "data-omelette-chrome": "" },
+              this.__name + ": " + this.state.__err
+            ),
+            h(Placeholder, {
+              name: this.__name,
+              hintSize: this.props.__hintSize,
+              error: this.state.__err
+            })
+          );
+        }
+        this.__reconcileLogic();
+        if (!r.tpl) {
+          return h(
+            "div",
+            hostBase,
+            h(Placeholder, { name: this.__name, hintSize: this.props.__hintSize })
+          );
+        }
+        const userProps = this.__userProps();
+        this.logic.props = userProps;
+        let vals = userProps;
+        let renderErr = r.logicError || this.__ctorError;
+        try {
+          vals = { ...userProps, ...this.logic.renderVals() || {} };
+        } catch (e) {
+          console.error(e);
+          renderErr = this.__name + ".renderVals(): " + (e instanceof Error && e.message ? e.message : String(e));
+        }
+        this.__streamingNow = !!(r.htmlStreaming || r.jsStreaming);
+        this.__htmlStreamingNow = !!r.htmlStreaming;
+        return h(
+          "div",
+          { ...hostBase, className: cls + (renderErr ? " sc-has-error" : "") },
+          renderErr && h(
+            "div",
+            { className: "sc-logic-error", "data-omelette-chrome": "" },
+            renderErr
+          ),
+          h(
+            AncestorContext.Provider,
+            { value: [...chain, this.__name] },
+            r.tpl(vals, this)
+          )
+        );
+      }
+    }
+    __publicField(StreamableComponent, "contextType", AncestorContext);
+    const named = /* @__PURE__ */ new Map();
+    function getDC(name) {
+      const hit = named.get(name);
+      if (hit) return hit;
+      function Dispatcher(p) {
+        const [, setTick] = React.useState(0);
+        React.useEffect(() => {
+          const sub = () => setTick((n) => n + 1);
+          registry.get(name).subs.add(sub);
+          return () => {
+            registry.get(name).subs.delete(sub);
+          };
+        }, []);
+        ensureFetched(name);
+        return h(StreamableComponent, { ...p, __name: name });
+      }
+      Dispatcher.displayName = name;
+      named.set(name, Dispatcher);
+      return Dispatcher;
+    }
+    return {
+      getDC,
+      StreamableComponent
+    };
+  }
+
+  // src/bundled.ts
+  function bundledBlob(url) {
+    const blobs = window.__resourceBlobs;
+    const b = blobs ? blobs[url.split("#")[0]] : void 0;
+    return b instanceof Blob ? b : null;
+  }
+
+  // src/cdn.ts
+  var REACT_URL = "https://unpkg.com/react@18.3.1/umd/react.production.min.js";
+  var REACT_SRI = "sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z";
+  var REACT_DOM_URL = "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js";
+  var REACT_DOM_SRI = "sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1";
+  var BABEL_URL = "https://unpkg.com/@babel/standalone@7.29.0/babel.min.js";
+  var BABEL_SRI = "sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y";
+  function cdnScriptFor(url, sri) {
+    const res = window.__resources;
+    const v = res ? res[url] : void 0;
+    return typeof v === "string" && v ? { src: v } : { src: url, integrity: sri };
+  }
+
+  // src/external.ts
+  var isCustomElementName = (n) => !n.includes(".") && n.includes("-");
+  function isRenderableType(g) {
+    if (typeof g === "function") return !isElementClass(g);
+    return typeof g === "object" && g !== null && typeof g.$$typeof === "symbol";
+  }
+  function resolveDottedPath(root, name) {
+    let cur = root;
+    for (const seg of name.split(".")) {
+      if (cur == null) return void 0;
+      cur = cur[seg];
+    }
+    return cur;
+  }
+  var GLOBAL_POLL_INTERVAL_MS = 50;
+  var GLOBAL_POLL_TIMEOUT_MS = 3e4;
+  function createExternalModules(onResolved) {
+    const cache = /* @__PURE__ */ new Map();
+    let babelLoading = null;
+    const reportedMissing = /* @__PURE__ */ new Map();
+    const polling = /* @__PURE__ */ new Set();
+    function ensureBabel() {
+      if (window.Babel) return Promise.resolve();
+      if (babelLoading) return babelLoading;
+      const babel = cdnScriptFor(BABEL_URL, BABEL_SRI);
+      babelLoading = new Promise((res, rej) => {
+        const s = document.createElement("script");
+        s.src = babel.src;
+        if (babel.integrity) {
+          s.integrity = babel.integrity;
+          s.crossOrigin = "anonymous";
+        }
+        s.onload = () => res();
+        s.onerror = rej;
+        document.head.appendChild(s);
+      });
+      return babelLoading;
+    }
+    const pending = /* @__PURE__ */ new Map();
+    function load(kind, url, after) {
+      const existing = pending.get(url);
+      if (existing) return existing;
+      cache.set(url, null);
+      console.info("[dc-runtime] x-import: loading", url, "(" + kind + ")");
+      const ready = Promise.all([
+        kind === "jsx" ? ensureBabel() : Promise.resolve(),
+        after ?? Promise.resolve()
+      ]);
+      const p = ready.then(() => {
+        const pre = bundledBlob(url);
+        if (pre) return pre.text();
+        return fetch(url).then((r) => {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.text();
+        });
+      }).then((src) => {
+        const code = kind === "jsx" ? window.Babel.transform(src, {
+          filename: url,
+          presets: ["react", "typescript"]
+        }).code : src;
+        const module = { exports: {} };
+        const before = new Set(Object.keys(window));
+        //! nosemgrep: eval-and-function-constructor
+        new Function("React", "module", "exports", "require", code)(
+          getReact(),
+          module,
+          module.exports,
+          () => ({})
+        );
+        const globals = {};
+        for (const k of Object.keys(window)) {
+          if (!before.has(k) && typeof window[k] === "function") {
+            globals[k] = window[k];
+          }
+        }
+        cache.set(url, { mod: module.exports, globals });
+        console.info(
+          "[dc-runtime] x-import: loaded",
+          url,
+          "\u2014 exports:",
+          Object.keys(module.exports),
+          "window globals:",
+          Object.keys(globals)
+        );
+        onResolved();
+      }).catch((e) => {
+        cache.set(url, {
+          mod: {},
+          globals: {},
+          error: "failed to load: " + (e instanceof Error && e.message ? e.message : String(e))
+        });
+        console.error(
+          "[dc-runtime] x-import: FAILED to load",
+          url,
+          "(" + kind + ")",
+          e
+        );
+        onResolved();
+      });
+      pending.set(url, p);
+      return p;
+    }
+    function resolve2(url, name) {
+      const entry = cache.get(url);
+      if (!entry) return null;
+      const { mod, globals } = entry;
+      const C = mod && mod[name] || globals && globals[name] || typeof window !== "undefined" && window[name] || mod && mod.default;
+      if (typeof C === "function") return C;
+      const key = url + "\0" + name;
+      if (!reportedMissing.has(key)) {
+        reportedMissing.set(
+          key,
+          entry.error || 'no export named "' + name + '" (has: ' + Object.keys(mod).join(", ") + ")"
+        );
+        console.error(
+          "[dc-runtime] x-import: module",
+          url,
+          "loaded but has no component named",
+          JSON.stringify(name),
+          "\u2014 available exports:",
+          Object.keys(mod),
+          "window globals:",
+          Object.keys(globals),
+          ". The module must `module.exports = {" + name + "}` or set `window." + name + "`."
+        );
+      }
+      return null;
+    }
+    function waitForGlobal(name) {
+      if (polling.has(name)) return;
+      polling.add(name);
+      const started = Date.now();
+      const isCE = isCustomElementName(name);
+      const tick = () => {
+        const found = isCE ? customElements.get(name) : isRenderableType(resolveDottedPath(window, name));
+        if (found) {
+          polling.delete(name);
+          onResolved();
+          return;
+        }
+        if (Date.now() - started >= GLOBAL_POLL_TIMEOUT_MS) {
+          console.warn(
+            "[dc-runtime] x-import: global",
+            JSON.stringify(name),
+            "never appeared on window after " + GLOBAL_POLL_TIMEOUT_MS + "ms"
+          );
+          return;
+        }
+        setTimeout(tick, GLOBAL_POLL_INTERVAL_MS);
+      };
+      setTimeout(tick, GLOBAL_POLL_INTERVAL_MS);
+    }
+    function resolveGlobal(url, name) {
+      const isCE = isCustomElementName(name);
+      if (!url) {
+        if (isCE) {
+          if (customElements.get(name)) return name;
+          waitForGlobal(name);
+          return null;
+        }
+        const g2 = resolveDottedPath(window, name);
+        if (isRenderableType(g2)) return g2;
+        waitForGlobal(name);
+        return null;
+      }
+      const entry = cache.get(url);
+      if (!entry) return null;
+      if (isCE && customElements.get(name)) return name;
+      const g = entry.globals[name] ?? resolveDottedPath(window, name);
+      if (isRenderableType(g)) return g;
+      if (name.includes(".")) return null;
+      const key = url + "\0global\0" + name;
+      if (!reportedMissing.has(key)) {
+        reportedMissing.set(key, null);
+        if (isCE && !customElements.get(name)) {
+          console.warn(
+            "[dc-runtime] x-import:",
+            url,
+            "loaded but no custom element",
+            JSON.stringify(name),
+            "is registered and window." + name + " is not a function \u2014 rendering <" + name + "> as an unknown element."
+          );
+        }
+      }
+      return name;
+    }
+    function getError(url, name) {
+      const entry = cache.get(url);
+      if (entry?.error) return entry.error;
+      return reportedMissing.get(url + "\0" + name) || null;
+    }
+    return { load, resolve: resolve2, resolveGlobal, getError };
+  }
+  function isElementClass(g) {
+    try {
+      return typeof g === "function" && typeof HTMLElement !== "undefined" && g.prototype instanceof HTMLElement;
+    } catch {
+      return false;
+    }
+  }
+
+  // src/atomics.ts
+  var ATOMIC_CSS = (
+    // layout
+    ".fx{display:flex}.col{display:flex;flex-direction:column}.grid{display:grid}.ac{align-items:center}.jc{justify-content:center}.jb{justify-content:space-between}.f1{flex:1}.noshrink{flex-shrink:0}.wrap{flex-wrap:wrap}.fw5{font-weight:500}.fw6{font-weight:600}.fw7{font-weight:700}.fw8{font-weight:800}.fs11{font-size:11px}.fs12{font-size:12px}.fs13{font-size:13px}.fs14{font-size:14px}.fs15{font-size:15px}.fs16{font-size:16px}.fs20{font-size:20px}.fs22{font-size:22px}.upper{text-transform:uppercase}.tc{text-align:center}.nowrap{white-space:nowrap}.gap8{gap:8px}.gap10{gap:10px}.gap12{gap:12px}.gap16{gap:16px}.gap24{gap:24px}.m0{margin:0}.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}.mb16{margin-bottom:16px}.posrel{position:relative}.posabs{position:absolute}.round{border-radius:50%}.ohide{overflow:hidden}.bbox{box-sizing:border-box}.pointer{cursor:pointer}.w100{width:100%}.b0{border:none}"
+  );
+
+  // src/helmet.ts
+  var DESIGN_DOC_MODE_RE = /<meta\b[^>]*\bname\s*=\s*["']design_doc_mode["'][^>]*\b(?:content|value)\s*=\s*["'](\w+)["']/i;
+  var CANVAS_BG_LIGHT = "#f0eee6";
+  var CANVAS_BG_DARK = "#2e2c26";
+  function createHelmetManager(doc, isStreaming) {
+    const mounted = /* @__PURE__ */ new Set();
+    const live = /* @__PURE__ */ new Map();
+    let designDocMode = null;
+    let canvasStyleEl = null;
+    let appTheme = "light";
+    try {
+      const ds = doc.documentElement.dataset.theme;
+      appTheme = ds === "dark" || ds === "light" ? ds : new URLSearchParams(doc.defaultView?.location.search ?? "").get(
+        "theme"
+      ) === "dark" ? "dark" : "light";
+    } catch {
+    }
+    function applyCanvasBg() {
+      if (!canvasStyleEl) return;
+      const bg = appTheme === "dark" ? CANVAS_BG_DARK : CANVAS_BG_LIGHT;
+      canvasStyleEl.textContent = `html,body{background:${bg}}#dc-root>.sc-host{position:relative}`;
+    }
+    function postDesignMode(mode) {
+      if (window.parent === window) return;
+      try {
+        window.parent.postMessage({ type: "__dc_design_mode", mode }, "*");
+      } catch {
+      }
+    }
+    function setDesignDocMode(mode) {
+      if (mode === designDocMode) return;
+      designDocMode = mode;
+      postDesignMode(mode);
+      if (mode === "canvas") {
+        doc.documentElement.setAttribute("data-dc-canvas", "");
+        canvasStyleEl = doc.createElement("style");
+        canvasStyleEl.setAttribute("data-dc-canvas", "");
+        applyCanvasBg();
+        doc.head.appendChild(canvasStyleEl);
+      } else {
+        doc.documentElement.removeAttribute("data-dc-canvas");
+        canvasStyleEl?.remove();
+        canvasStyleEl = null;
+      }
+    }
+    window.addEventListener("message", (e) => {
+      const type = e.data && e.data.type;
+      if (type === "__dc_theme") {
+        const t = e.data.theme;
+        if (t === "light" || t === "dark") {
+          appTheme = t;
+          applyCanvasBg();
+        }
+        return;
+      }
+      if (!designDocMode || type !== "__dc_probe") return;
+      postDesignMode(designDocMode);
+    });
+    function compile(node) {
+      const raw = [...node.children];
+      const helmetClosed = node.nextSibling != null || node.parentNode?.nextSibling != null;
+      if (node.hasAttribute("data-dc-atomics") && !mounted.has("__dc-atomics")) {
+        mounted.add("__dc-atomics");
+        const el = doc.createElement("style");
+        el.id = "__dc-atomics";
+        el.textContent = ATOMIC_CSS;
+        doc.head.appendChild(el);
+      }
+      return (_vals, ctx) => {
+        const name = ctx && ctx.__name || "";
+        const streaming = !!(name && isStreaming(name));
+        for (let i = 0; i < raw.length; i++) {
+          const child = raw[i];
+          const tag = child.tagName;
+          const mayBePartial = streaming && !helmetClosed && i === raw.length - 1;
+          if (tag === "SCRIPT") {
+            if (mayBePartial) continue;
+            const key = "SCRIPT|" + (child.getAttribute("src") || child.textContent || "");
+            if (mounted.has(key)) continue;
+            mounted.add(key);
+            const el = doc.createElement("script");
+            for (const { name: an, value } of [...child.attributes])
+              el.setAttribute(an, value);
+            if (child.textContent) el.textContent = child.textContent;
+            doc.head.appendChild(el);
+          } else if (tag === "LINK" || tag === "META") {
+            if (mayBePartial) continue;
+            const key = tag + "|" + (child.getAttribute("href") || child.getAttribute("src") || child.outerHTML);
+            if (mounted.has(key)) continue;
+            mounted.add(key);
+            if (tag === "LINK") {
+              const rel = (child.getAttribute("rel") || "").toLowerCase().split(/\s+/);
+              const href = (child.getAttribute("href") || "").trim();
+              const res = window.__resources;
+              const pre = res && rel.includes("stylesheet") && !rel.includes("alternate") ? res[href] : void 0;
+              const blob = typeof pre === "string" && pre ? bundledBlob(pre) : null;
+              if (blob) {
+                const el = doc.createElement("style");
+                if (child.hasAttribute("disabled")) {
+                  el.setAttribute("media", "not all");
+                } else if (child.getAttribute("media")) {
+                  el.setAttribute("media", child.getAttribute("media"));
+                }
+                if (child.getAttribute("title"))
+                  el.setAttribute("title", child.getAttribute("title"));
+                void blob.text().then((css) => {
+                  el.textContent = css;
+                });
+                doc.head.appendChild(el);
+                continue;
+              }
+            }
+            doc.head.appendChild(child.cloneNode(true));
+          } else {
+            const key = name + "|" + i;
+            let el = live.get(key);
+            if (!el || el.tagName !== tag) {
+              if (el) el.remove();
+              el = doc.createElement(tag.toLowerCase());
+              live.set(key, el);
+              doc.head.appendChild(el);
+            }
+            for (const { name: an, value } of [...child.attributes]) {
+              if (el.getAttribute(an) !== value) el.setAttribute(an, value);
+            }
+            if (el.textContent !== child.textContent)
+              el.textContent = child.textContent;
+          }
+        }
+        return null;
+      };
+    }
+    return { compile, setDesignDocMode };
+  }
+
+  // src/pseudo.ts
+  function scanUnquotedUrl(css, i) {
+    if (css[i] !== "u" && css[i] !== "U" || css.slice(i, i + 4).toLowerCase() !== "url(" || /[a-z0-9_-]/i.test(css[i - 1] ?? "")) {
+      return -1;
+    }
+    let j = i + 4;
+    while (j < css.length && /\s/.test(css[j])) j++;
+    if (css[j] === '"' || css[j] === "'") return -1;
+    while (j < css.length && css[j] !== ")") {
+      if (css[j] === "\\") j++;
+      j++;
+    }
+    return j < css.length ? j + 1 : css.length;
+  }
+  function stripComments(css) {
+    let out = "";
+    let quote = "";
+    for (let i = 0; i < css.length; i++) {
+      const c = css[i];
+      if (quote) {
+        if (c === "\\") {
+          out += c + (css[i + 1] ?? "");
+          i++;
+          continue;
+        }
+        if (c === quote) quote = "";
+        out += c;
+      } else if (c === "'" || c === '"') {
+        quote = c;
+        out += c;
+      } else if (c === "/" && css[i + 1] === "*") {
+        const end = css.indexOf("*/", i + 2);
+        i = end === -1 ? css.length : end + 1;
+        out += " ";
+      } else {
+        const end = scanUnquotedUrl(css, i);
+        if (end === -1) out += c;
+        else {
+          out += css.slice(i, end);
+          i = end - 1;
+        }
+      }
+    }
+    return out;
+  }
+  function importantify(css) {
+    css = stripComments(css);
+    const decls = [];
+    let start = 0;
+    let depth = 0;
+    let quote = "";
+    for (let i = 0; i < css.length; i++) {
+      const c = css[i];
+      if (quote) {
+        if (c === "\\") i++;
+        else if (c === quote) quote = "";
+      } else if (c === "'" || c === '"') quote = c;
+      else if (c === "(") depth++;
+      else if (c === ")") depth = Math.max(0, depth - 1);
+      else if (c === ";" && depth === 0) {
+        decls.push(css.slice(start, i));
+        start = i + 1;
+      } else {
+        const end = scanUnquotedUrl(css, i);
+        if (end !== -1) i = end - 1;
+      }
+    }
+    decls.push(css.slice(start));
+    return decls.map((d) => d.trim()).filter(Boolean).map((d) => /!\s*important$/i.test(d) ? d : d + " !important").join(";");
+  }
+  function createPseudoSheet(doc) {
+    let el = null;
+    const cache = /* @__PURE__ */ new Map();
+    let n = 0;
+    return (pseudo, css) => {
+      const k = pseudo + "|" + css;
+      const hit = cache.get(k);
+      if (hit) return hit;
+      if (!el) {
+        el = doc.createElement("style");
+        doc.head.appendChild(el);
+      }
+      const cls = "scp" + (n++).toString(36);
+      const isPseudoElement = pseudo === "before" || pseudo === "after";
+      const sel = isPseudoElement ? "." + cls + "::" + pseudo : "." + cls + ":" + pseudo;
+      el.sheet.insertRule(
+        sel + "{" + (isPseudoElement ? css : importantify(css)) + "}",
+        el.sheet.cssRules.length
+      );
+      cache.set(k, cls);
+      return cls;
+    };
+  }
+
+  // src/registry.ts
+  function createRegistry() {
+    const entries = /* @__PURE__ */ Object.create(null);
+    function get(name) {
+      return entries[name] || (entries[name] = {
+        html: "",
+        tpl: null,
+        Logic: null,
+        jsStreaming: false,
+        htmlStreaming: false,
+        ver: 0,
+        subs: /* @__PURE__ */ new Set(),
+        fetched: false
+      });
+    }
+    function bump(name) {
+      const r = get(name);
+      r.ver++;
+      for (const fn of r.subs) fn();
+    }
+    return {
+      entries,
+      get,
+      bump,
+      bumpAll() {
+        for (const n in entries) bump(n);
+      }
+    };
+  }
+
+  // src/runtime.ts
+  var COMPONENT_DIR = ".";
+  function createRuntime(doc = document) {
+    const registry = createRegistry();
+    const pseudoClass = createPseudoSheet(doc);
+    const helmet = createHelmetManager(
+      doc,
+      (name) => registry.get(name).htmlStreaming
+    );
+    const external = createExternalModules(() => registry.bumpAll());
+    const factory = createComponentFactory(registry, ensureFetched);
+    const host = {
+      component: (name) => factory.getDC(name),
+      placeholder: (props) => h(Placeholder, props),
+      helmet: (node) => helmet.compile(node),
+      loadExternal: (kind, url, after) => external.load(kind, url, after),
+      resolveExternal: (url, name) => external.resolve(url, name),
+      resolveExternalGlobal: (url, name) => external.resolveGlobal(url, name),
+      resolveExternalError: (url, name) => external.getError(url, name),
+      pseudoClass
+    };
+    function ensureFetched(name) {
+      const r = registry.get(name);
+      if (r.fetched) return;
+      r.fetched = true;
+      const url = COMPONENT_DIR + "/" + encodeURIComponent(name) + ".dc.html";
+      const res = window.__resources;
+      const pre = res ? res[url] : void 0;
+      const target = typeof pre === "string" && pre ? pre : url;
+      const blob = bundledBlob(target);
+      (blob ? blob.text() : fetch(target).then((res2) => {
+        if (!res2.ok) {
+          console.error(
+            '[dc-runtime] sibling fetch for "' + name + '" failed:',
+            url,
+            "returned",
+            res2.status,
+            "\u2014 the reference renders as an empty placeholder."
+          );
+          return "";
+        }
+        return res2.text();
+      })).then((t) => {
+        if (!t) return;
+        const parsed = parseDcText(t);
+        if (!parsed) {
+          console.error(
+            '[dc-runtime] sibling fetch for "' + name + '":',
+            url,
+            "has no <x-dc> block \u2014 not a Design Component."
+          );
+          return;
+        }
+        if (parsed.props) r.propsMeta = parsed.props;
+        if (parsed.preview) r.preview = parsed.preview;
+        if (parsed.template && !r.html) updateHtml(name, parsed.template);
+        if (parsed.js && !r.Logic) updateJs(name, parsed.js);
+      }).catch(
+        (e) => console.error(
+          '[dc-runtime] sibling fetch for "' + name + '" threw:',
+          url,
+          e
+        )
+      );
+    }
+    let rootName = null;
+    function updateHtml(name, html) {
+      const r = registry.get(name);
+      r.html = html;
+      if (name === rootName) {
+        const mode = DESIGN_DOC_MODE_RE.exec(html)?.[1] ?? null;
+        if (mode || !r.htmlStreaming) helmet.setDesignDocMode(mode);
+      }
+      try {
+        r.tpl = compileTemplate(html, host);
+      } catch (e) {
+        console.error("[dc-runtime] template compile FAILED for", name, e);
+      }
+      registry.bump(name);
+    }
+    function updateJs(name, src) {
+      const r = registry.get(name);
+      const seq = r.jsSeq = (r.jsSeq || 0) + 1;
+      try {
+        const Cls = evalDcLogic(src);
+        if (r.jsSeq !== seq) return;
+        if (typeof Cls !== "function") {
+          r.logicError = name + ".dc.html: <script data-dc-script> must define `class Component extends DCLogic`";
+        } else {
+          r.logicError = null;
+          r.Logic = Cls;
+        }
+      } catch (e) {
+        if (r.jsSeq !== seq) return;
+        console.error(
+          "[dc-runtime] logic class eval FAILED for",
+          name,
+          "\u2014 the template renders with props only.",
+          e
+        );
+        r.logicError = name + ": " + (e instanceof Error && e.message ? e.message : String(e));
+      }
+      registry.bump(name);
+    }
+    function setStreaming(name, kind, on) {
+      const r = registry.get(name);
+      if (kind === "html") r.htmlStreaming = !!on;
+      else r.jsStreaming = !!on;
+      let any = false;
+      for (const n in registry.entries) {
+        const e = registry.entries[n];
+        if (e && (e.htmlStreaming || e.jsStreaming)) {
+          any = true;
+          break;
+        }
+      }
+      doc.documentElement.classList.toggle("sc-dc-streaming", any);
+      registry.bump(name);
+    }
+    function dcUpdate(name, kind, content, streaming) {
+      if (streaming) registry.get(name).fetched = true;
+      if (kind === "html") {
+        setStreaming(name, "html", !!streaming);
+        updateHtml(name, content);
+      } else if (kind === "js") {
+        setStreaming(name, "js", !!streaming);
+        if (!streaming) updateJs(name, content);
+      } else if (kind === "props") {
+        const { props, preview } = parseDataProps(content);
+        const r = registry.get(name);
+        r.propsMeta = props ?? void 0;
+        r.preview = preview;
+        registry.bump(name);
+      }
+    }
+    function setProps(name, overrides) {
+      registry.get(name).propOverrides = overrides && typeof overrides === "object" ? { ...overrides } : null;
+      registry.bump(name);
+    }
+    function adoptParsed(name, parsed) {
+      if (!parsed) return;
+      const r = registry.get(name);
+      if (parsed.props) r.propsMeta = parsed.props;
+      if (parsed.preview) r.preview = parsed.preview;
+      if (parsed.template) updateHtml(name, parsed.template);
+      if (parsed.js) updateJs(name, parsed.js);
+    }
+    return {
+      registry,
+      getDC: factory.getDC,
+      updateHtml,
+      updateJs,
+      dcUpdate,
+      setProps,
+      adoptParsed,
+      setRootName: (name) => {
+        rootName = name;
+      },
+      markFetched: (name) => {
+        registry.get(name).fetched = true;
+      },
+      annotatedTemplate: (name) => {
+        const r = registry.get(name);
+        return r.tpl && r.tpl.__annotated || null;
+      },
+      templateSource: (name) => registry.get(name).html || null,
+      StreamableLogic
+    };
+  }
+
+  // src/stream-state.ts
+  function createStreamTracker(staleMs = 6e4, now = Date.now) {
+    const since = /* @__PURE__ */ new Map();
+    const liveOne = (n) => {
+      const t = since.get(n);
+      if (t === void 0) return false;
+      if (now() - t > staleMs) {
+        since.delete(n);
+        return false;
+      }
+      return true;
+    };
+    return {
+      push(name, streaming, viewportKey) {
+        if (viewportKey === "dc-model") return;
+        if (streaming) since.set(name, now());
+        else since.delete(name);
+      },
+      live(name) {
+        if (name !== void 0) return liveOne(name);
+        for (const n of [...since.keys()]) if (liveOne(n)) return true;
+        return false;
+      }
+    };
+  }
+
+  // src/index.ts
+  function hideRawTemplate() {
+    const s = document.createElement("style");
+    s.textContent = "x-dc{display:none!important}";
+    document.head.appendChild(s);
+  }
+  function loadScript(src, integrity) {
+    return new Promise((resolve2, reject) => {
+      //! nosemgrep: create-script-element
+      const s = document.createElement("script");
+      s.src = src;
+      if (integrity) {
+        s.integrity = integrity;
+        s.crossOrigin = "anonymous";
+      }
+      s.async = false;
+      s.onload = () => resolve2();
+      s.onerror = () => reject(new Error(`failed to load ${src}`));
+      document.head.appendChild(s);
+    });
+  }
+  function loadReactUmd() {
+    const w = window;
+    if (w.React && w.ReactDOM) return Promise.resolve();
+    const react = cdnScriptFor(REACT_URL, REACT_SRI);
+    const reactDom = cdnScriptFor(REACT_DOM_URL, REACT_DOM_SRI);
+    return Promise.all([
+      loadScript(react.src, react.integrity),
+      loadScript(reactDom.src, reactDom.integrity)
+    ]).then(() => void 0);
+  }
+  function init() {
+    const runtime = createRuntime(document);
+    let rootName = "Root";
+    const baseCss = document.createElement("style");
+    baseCss.textContent = BASE_CSS;
+    document.head.prepend(baseCss);
+    const notifyHost = () => {
+      if (window.parent === window) return;
+      const r = runtime.registry.entries[rootName];
+      try {
+        window.parent.postMessage(
+          {
+            type: "__dc_booted",
+            rootName,
+            propsMeta: r && r.propsMeta || null,
+            preview: r && r.preview || null
+          },
+          "*"
+        );
+      } catch {
+      }
+    };
+    const streams = createStreamTracker();
+    const api = {
+      __dcUpdate: (name, kind, content, streaming, viewportKey) => {
+        streams.push(name, streaming, viewportKey);
+        runtime.dcUpdate(name, kind, content, streaming);
+        if (name === rootName && !streaming && kind === "props") notifyHost();
+      },
+      __dcStreaming: (name) => streams.live(name),
+      __dcSetProps: (name, overrides) => runtime.setProps(name, overrides),
+      /** Name of the component currently mounted as the page root — DC tools
+       *  push their template-stream here when targeting "the open page". */
+      __dcRootName: () => rootName,
+      /** Editor bridge — the encoded, `data-dc-tpl`-annotated template source.
+       *  The host editor parses this into its own template DOM so it can map a
+       *  rendered node (carrying the same `data-dc-tpl`) back to the source
+       *  node that emitted it. Returns the encoded form (`sc-camel-*` attrs,
+       *  `<sc-raw-*>`/`<sc-helmet>` tags); the editor decodes on serialize. */
+      __dcAnnotatedTemplate: (name) => runtime.annotatedTemplate(name),
+      /** Editor bridge — the *original* (decoded) template source. */
+      __dcTemplateSource: (name) => runtime.templateSource(name),
+      __dcBoot: () => {
+        rootName = boot(runtime, document) ?? rootName;
+        notifyHost();
+      },
+      __dcRegistry: runtime.registry.entries,
+      getDC: (name) => runtime.getDC(name),
+      // `DCLogic` is the documented base class name; `StreamableLogic` is the
+      // implementation alias kept for any project that already references it.
+      DCLogic: runtime.StreamableLogic,
+      StreamableLogic: runtime.StreamableLogic
+    };
+    Object.assign(window, api);
+    window.__dcContentKeyed = true;
+    if (document.readyState !== "loading") api.__dcBoot();
+    else document.addEventListener("DOMContentLoaded", () => api.__dcBoot());
+  }
+  hideRawTemplate();
+  loadReactUmd().then(init).catch((err) => {
+    console.error("[dc] failed to load React or boot:", err);
+    throw err;
+  });
+})();
+
+</script>
+<style id="tokens">
+/* tokens.runtime.css — 由 tokens.css 机械转换（@theme → :root，@keyframes 提到顶层），供原型直接加载。正式工程只用 tokens.css。 */
+/* Mita JobPilot · tokens.css · v0.1
+ * Tailwind v4 @theme。第 5 节 MITA Finance 原 token 逐字沿用；JobPilot 新增以「── 新增」标出。
+ * 用法：在入口 CSS 中先引入 Tailwind，再引入 ./tokens.css
+ * 暗色：<html data-theme="dark">（放在 html 上）。 */
+
+:root {
+  /* Surface: cream paper, warm yellow undertone */
+  --color-cream-50:  #FFFEF8;   /* 卡片 / 输入框表面 */
+  --color-cream-100: #FEF9E7;   /* 页面底色、hover 填充 */
+  --color-cream-200: #FCF3CF;   /* 分隔线、浅填充、表头、AI 气泡 */
+  --color-cream-300: #F9E79F;   /* 导航激活态 pill */
+  --color-cream-400: #F4D03F;   /* 高亮 ring、「待确认」虚线 */
+  --color-cream-500: #E8C547;   /* focus outline、涂鸦下划线 */
+
+  /* Ink: warm near-black text and borders */
+  --color-ink-100: #F2ECE0;
+  --color-ink-200: #E5DED0;     /* 默认 1px 边框、网格线 */
+  --color-ink-300: #C8BEB0;
+  --color-ink-400: #8B7E6C;     /* 禁用文字 */
+  --color-ink-500: #6B5E4E;     /* 次要文字、标签、eyebrow */
+  --color-ink-700: #3D342A;     /* 正文 */
+  --color-ink-900: #1F1A14;     /* 主文字，也是主按钮填充 */
+
+  /* Accent: earth tones, never synthetic neons */
+  --color-accent-amber: #D97706;
+  --color-accent-olive: #7A8450;
+  --color-accent-rose:  #B56576;
+  --color-accent-sage:  #9DB17C;
+
+  /* Semantic state: muted, never pure red/green */
+  --color-pos-500: #4F7B49;  --color-pos-50: #E8F0E0;
+  --color-neg-500: #B8563E;  --color-neg-50: #F5E6DE;
+  --color-warn-500: #D97706; --color-warn-50: #FFF8E1;
+
+  --spacing-gutter: 4rem;    /* 主内容右侧留白，避开浮动按钮 */
+
+  --font-sans:      "Noto Sans JP", "Geist", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  --font-hand:      "Kalam", "Indie Flower", "Klee One", cursive;
+  --font-hand-body: "Indie Flower", "Kalam", "Klee One", cursive;
+  --font-num:       "Klee One", "Kalam", "Indie Flower", cursive;
+  --font-serif:     "Fraunces", "Noto Sans JP", serif;
+  --font-mono:      "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ── 新增 · 几何与动效 */
+  --radius-card: 14px;                              /* rounded-card；按钮 / 输入 8px 与模态 16px 沿用 Tailwind 默认 lg / 2xl */
+  --ease-quiet: cubic-bezier(.4, 0, .2, 1);         /* ease-quiet */
+  --animate-pulse-soft: pulse-soft 2.8s ease-in-out infinite;   /* 聊天 FAB、按住录音 */
+  --animate-typing: typing-bounce 1.2s ease-in-out infinite;    /* AI 输入中三点 */
+
+  /* ── 新增 · 应聘状态 chip（12 态 × fg/bg/border；同组同色相、三档明度） */
+  --color-status-unrecorded-fg:       #635546;
+  --color-status-unrecorded-bg:       transparent;
+  --color-status-unrecorded-border:   #E5DCD4;
+  --color-status-considering-fg:      #594A3A;
+  --color-status-considering-bg:      #EEE6DE;
+  --color-status-considering-border:  #D7CCBF;
+  --color-status-preparing-fg:        #423527;
+  --color-status-preparing-bg:        #D9CBBC;
+  --color-status-preparing-border:    #B7A897;
+  --color-status-applied-fg:          #7F490C;
+  --color-status-applied-bg:          #FFF1E5;
+  --color-status-applied-border:      #F7D7BD;
+  --color-status-assessment-fg:       #763C00;
+  --color-status-assessment-bg:       #FFE2CA;
+  --color-status-assessment-border:   #F0C49F;
+  --color-status-interviewing-fg:     #5B2800;
+  --color-status-interviewing-bg:     #F7C294;
+  --color-status-interviewing-border: #D89C67;
+  --color-status-offer-fg:            #3A6433;
+  --color-status-offer-bg:            #EDF7EB;
+  --color-status-offer-border:        #CEE6CA;
+  --color-status-accepted-fg:         #2B5A23;
+  --color-status-accepted-bg:         #DAEFD6;
+  --color-status-accepted-border:     #B8D9B2;
+  --color-status-joined-fg:           #194312;
+  --color-status-joined-bg:           #B3DBAC;
+  --color-status-joined-border:       #8BB984;
+  --color-status-unsuitable-fg:       #714A60;
+  --color-status-unsuitable-bg:       #FBF0F5;
+  --color-status-unsuitable-border:   #EED6E3;
+  --color-status-withdrawn-fg:        #673D56;
+  --color-status-withdrawn-bg:        #F7E1EC;
+  --color-status-withdrawn-border:    #E4C3D4;
+  --color-status-rejected-fg:         #4E2A3F;
+  --color-status-rejected-bg:         #E8C1D6;
+  --color-status-rejected-border:     #C89CB4;
+
+  /* ── 新增 · 岗位招聘状态四分徽标 */
+  --color-listing-open-fg:            #25541D;
+  --color-listing-open-bg:            #DAEFD6;
+  --color-listing-open-border:        #B2D7AC;
+  --color-listing-verify-fg:          #635546;
+  --color-listing-verify-bg:          #F2EEE9;
+  --color-listing-verify-border:      #DBD3CA;
+  --color-listing-lead-fg:            #1F1A14;
+  --color-listing-lead-bg:            #F9E79F;
+  --color-listing-lead-border:        #E8C547;
+  --color-listing-excluded-fg:        #6B5E4E;
+  --color-listing-excluded-bg:        transparent;
+  --color-listing-excluded-border:    #C8BEB0;
+
+  /* ── 新增 · 来源徽标（7 种） */
+  --color-source-fg:                  #6B5E4E;
+  --color-source-bg:                  #FCF3CF;
+  --color-source-border:              transparent;
+  --color-source-gmail:               #9D587A;
+  --color-source-calendar:            #45703E;
+  --color-source-linkedin:            #4D667F;
+  --color-source-manual:              #524536;
+  --color-source-chat:                #B0660C;
+  --color-source-import:              #7D6F5F;
+  --color-source-research:            #94771A;
+
+  /* ── 新增 · 「待确认」占位 */
+  --color-pending-fg:                 #6B5E4E;
+  --color-pending-bg:                 #FEF9E7;
+  --color-pending-border:             #F4D03F;
+
+  /* ── 新增 · 「待复核」标记 */
+  --color-review-fg:                  #7D4B00;
+  --color-review-bg:                  #FFF8E1;
+  --color-review-border:              #EBC487;
+
+  /* ── 新增 · 信息源健康五态 */
+  --color-health-healthy:             #4F7B49;
+  --color-health-healthy-bg:          #E8F0E0;
+  --color-health-degraded:            #D97706;
+  --color-health-degraded-bg:         #FFF8E1;
+  --color-health-auth_required:                #9E5B82;
+  --color-health-auth_required-bg:             #FCE8F2;
+  --color-health-unavailable:         #B8563E;
+  --color-health-unavailable-bg:      #F5E6DE;
+  --color-health-disabled:            #8B7E6C;
+  --color-health-disabled-bg:         #FCF3CF;
+
+  /* ── 新增 · 派生标记：ghosted */
+  --color-ghosted-fg:                 #8B7E6C;
+
+  /* ── 新增 · 派生标记：已手动覆盖 */
+  --color-override-fg:                #3D342A;
+  --color-override-bg:                #F9E79F;
+
+  /* ── 新增 · 确认卡片 变化前 / 后 */
+  --color-diff-before-fg:             #6B5E4E;
+  --color-diff-after-fg:              #1F1A14;
+  --color-diff-after-bg:              #FCF3CF;
+}
+
+/* 页面背景：两层暖黄径向渐变叠在 cream-100 上，attachment fixed。这是唯一允许的「渐变」 */
+body {
+  background:
+    radial-gradient(1200px 800px at 80% -10%, rgba(228,195,98,.18), transparent 60%),
+    radial-gradient(900px 700px at -10% 110%, rgba(228,195,98,.10), transparent 60%),
+    var(--color-cream-100);
+  background-attachment: fixed;
+  color: var(--color-ink-900);
+  font-family: var(--font-sans);
+}
+
+.hand      { font-family: var(--font-hand); font-weight: 700; }   /* 品牌字标与真正的大标题 */
+.hand-body { font-family: var(--font-hand-body); font-weight: 400; } /* 首屏问候、AI 提示标题 */
+.serif     { font-family: var(--font-serif); }                    /* 页面标题 */
+.num       { font-family: var(--font-num); font-variant-numeric: tabular-nums; letter-spacing: .2px; } /* KPI 大数字 */
+
+.card-paper {
+  background: var(--color-cream-50);
+  border: 1px solid var(--color-ink-200);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(95,75,40,.04), 0 8px 24px -12px rgba(95,75,40,.12);
+}
+
+/* 暗色模式（整套值已定，请在 tokens.css 中保留） */
+[data-theme="dark"] {
+  --color-cream-50: #1A1712; --color-cream-100: #221E17; --color-cream-200: #2B261D;
+  --color-cream-300: #3D3524; --color-cream-400: #5C4F32; --color-cream-500: #7A6B44;
+  --color-ink-900: #F5EFE2; --color-ink-700: #D8CEBA; --color-ink-500: #A89E8A; --color-ink-400: #847B68;
+  --color-ink-300: #4A4338; --color-ink-200: #35302A; --color-ink-100: #2A2620;
+  --color-pos-500: #8FB37E; --color-pos-50: #2B3426; --color-neg-500: #D88968; --color-neg-50: #3A2A22;
+}
+[data-theme="dark"] .card-paper { background: var(--color-cream-200); border-color: var(--color-ink-300);
+  box-shadow: 0 1px 2px rgba(0,0,0,.2), 0 8px 24px -12px rgba(0,0,0,.4); }
+
+/* ── 新增 token 的暗色值（与上面 light 一一对应；data-theme 须放在 <html> 上，否则别名不会跟随切换） */
+[data-theme="dark"] {
+  --color-status-unrecorded-fg:       #CDC2B6;
+  --color-status-unrecorded-bg:       transparent;
+  --color-status-unrecorded-border:   #4C4741;
+  --color-status-considering-fg:      #D8CBBD;
+  --color-status-considering-bg:      #3D3731;
+  --color-status-considering-border:  #5C544B;
+  --color-status-preparing-fg:        #E9DCCD;
+  --color-status-preparing-bg:        #50463B;
+  --color-status-preparing-border:    #796C5E;
+  --color-status-applied-fg:          #E6BB96;
+  --color-status-applied-bg:          #3A2E23;
+  --color-status-applied-border:      #584331;
+  --color-status-assessment-fg:       #F4C398;
+  --color-status-assessment-bg:       #49331F;
+  --color-status-assessment-border:   #6D4E31;
+  --color-status-interviewing-fg:     #FFD3A8;
+  --color-status-interviewing-bg:     #643D17;
+  --color-status-interviewing-border: #946233;
+  --color-status-offer-fg:            #AECFA9;
+  --color-status-offer-bg:            #2A3329;
+  --color-status-offer-border:        #3D4D3A;
+  --color-status-accepted-fg:         #B5DAAE;
+  --color-status-accepted-bg:         #2C3D29;
+  --color-status-accepted-border:     #455D41;
+  --color-status-joined-fg:           #C5EBBE;
+  --color-status-joined-bg:           #33512E;
+  --color-status-joined-border:       #547B4D;
+  --color-status-unsuitable-fg:       #DAB9CB;
+  --color-status-unsuitable-bg:       #362D32;
+  --color-status-unsuitable-border:   #52424B;
+  --color-status-withdrawn-fg:        #E7C1D5;
+  --color-status-withdrawn-bg:        #43323B;
+  --color-status-withdrawn-border:    #654D5A;
+  --color-status-rejected-fg:         #F7D1E6;
+  --color-status-rejected-bg:         #5A3E4D;
+  --color-status-rejected-border:     #876276;
+
+  --color-listing-open-fg:            #B2DBAA;
+  --color-listing-open-bg:            #2C3D2A;
+  --color-listing-open-border:        #456141;
+  --color-listing-verify-fg:          #C6BCB0;
+  --color-listing-verify-bg:          #36322E;
+  --color-listing-verify-border:      #554F47;
+  --color-listing-lead-fg:            #F5EFE2;
+  --color-listing-lead-bg:            #5C4F32;
+  --color-listing-lead-border:        #7A6B44;
+  --color-listing-excluded-fg:        #A89E8A;
+  --color-listing-excluded-bg:        transparent;
+  --color-listing-excluded-border:    #4A4338;
+
+  --color-source-fg:                  #D8CEBA;
+  --color-source-bg:                  #3D3524;
+  --color-source-border:              transparent;
+  --color-source-gmail:               #E5A4C2;
+  --color-source-calendar:            #91B78A;
+  --color-source-linkedin:            #97ADC5;
+  --color-source-manual:              #978A7C;
+  --color-source-chat:                #F1AD71;
+  --color-source-import:              #C6B8A9;
+  --color-source-research:            #D5BB76;
+
+  --color-pending-fg:                 #A89E8A;
+  --color-pending-bg:                 #221E17;
+  --color-pending-border:             #5C4F32;
+
+  --color-review-fg:                  #F2CA8D;
+  --color-review-bg:                  #433215;
+  --color-review-border:              #765723;
+
+  --color-health-healthy:             #8FB37E;
+  --color-health-healthy-bg:          #2B3426;
+  --color-health-degraded:            #EC9D53;
+  --color-health-degraded-bg:         #463117;
+  --color-health-auth_required:                #DB9ABE;
+  --color-health-auth_required-bg:             #442D3A;
+  --color-health-unavailable:         #D88968;
+  --color-health-unavailable-bg:      #3A2A22;
+  --color-health-disabled:            #847B68;
+  --color-health-disabled-bg:         #2B261D;
+
+  --color-ghosted-fg:                 #847B68;
+
+  --color-override-fg:                #F5EFE2;
+  --color-override-bg:                #5C4F32;
+
+  --color-diff-before-fg:             #A89E8A;
+  --color-diff-after-fg:              #F5EFE2;
+  --color-diff-after-bg:              #3D3524;
+}
+
+/* ── 新增 · 动效基线（沿用 MITA：150ms 颜色 · 200ms 位移 · 300ms 面板） */
+:root { --duration-color: 150ms; --duration-move: 200ms; --duration-panel: 300ms; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* ── 新增 · 三个专用工具类（不能用 Tailwind 单一 utility 表达的部分） */
+.pending {   /* 「待确认」占位：信息缺失的展示占位，不是状态 */
+  border: 1px dashed var(--color-pending-border);
+  background: var(--color-pending-bg);
+  color: var(--color-pending-fg);
+  border-radius: 8px;
+}
+.ghosted { color: var(--color-ghosted-fg); }
+.ghosted .chip, .ghosted .badge { filter: saturate(.35); opacity: .8; }
+.hand-circle {   /* 面试日历上的手绘圆圈：SVG stroke 用法见 components.md */
+  stroke: var(--color-accent-amber); stroke-width: 1.8; fill: none; stroke-linecap: round; stroke-dasharray: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * token → 用途（含 light / dark 值）
+ *
+ * 原 MITA token 用途见上方逐行注释；此表只列 JobPilot 新增 token。
+ * 色相策略：4 个应聘状态组 = 4 个色相（暖灰 70° · 琥珀 62° · 橄榄 141° · 干玫瑰 345°，OKLCH），
+ * 同组只变明度：第 1 档最淡 → 第 3 档最深；结束终态组按后果轻→重排档（不合适 1 · 主动放弃 2 · 已落选 3）。
+ * 所有 chip 文字与底的对比度 ≥ 4.6:1（light 与 dark 均校验过）。橄榄 vs 干玫瑰在红绿色弱下靠明度与蓝分量区分，
+ * 且 chip 永远带文字，颜色不是唯一信号。
+ *
+ * token                             light       dark        用途
+ * ------------------------------------------------------------------------------------------------------------------------
+ * --color-status-unrecorded-fg      #635546     #CDC2B6     状态 chip「未记录」文字 · 未开始 / 暖灰 taupe · 第 1 档
+ * --color-status-unrecorded-bg      transparent transparent 状态 chip「未记录」底（空心：尚无记录）
+ * --color-status-unrecorded-border  #E5DCD4     #4C4741     状态 chip「未记录」边框
+ * --color-status-considering-fg     #594A3A     #D8CBBD     状态 chip「考虑中」文字 · 未开始 / 暖灰 taupe · 第 2 档
+ * --color-status-considering-bg     #EEE6DE     #3D3731     状态 chip「考虑中」底
+ * --color-status-considering-border #D7CCBF     #5C544B     状态 chip「考虑中」边框
+ * --color-status-preparing-fg       #423527     #E9DCCD     状态 chip「准备申请」文字 · 未开始 / 暖灰 taupe · 第 3 档
+ * --color-status-preparing-bg       #D9CBBC     #50463B     状态 chip「准备申请」底
+ * --color-status-preparing-border   #B7A897     #796C5E     状态 chip「准备申请」边框
+ * --color-status-applied-fg         #7F490C     #E6BB96     状态 chip「已申请」文字 · 进行中 / 琥珀 amber · 第 1 档
+ * --color-status-applied-bg         #FFF1E5     #3A2E23     状态 chip「已申请」底
+ * --color-status-applied-border     #F7D7BD     #584331     状态 chip「已申请」边框
+ * --color-status-assessment-fg      #763C00     #F4C398     状态 chip「笔试或课题」文字 · 进行中 / 琥珀 amber · 第 2 档
+ * --color-status-assessment-bg      #FFE2CA     #49331F     状态 chip「笔试或课题」底
+ * --color-status-assessment-border  #F0C49F     #6D4E31     状态 chip「笔试或课题」边框
+ * --color-status-interviewing-fg    #5B2800     #FFD3A8     状态 chip「面试中」文字 · 进行中 / 琥珀 amber · 第 3 档
+ * --color-status-interviewing-bg    #F7C294     #643D17     状态 chip「面试中」底
+ * --color-status-interviewing-border #D89C67     #946233     状态 chip「面试中」边框
+ * --color-status-offer-fg           #3A6433     #AECFA9     状态 chip「Offer」文字 · 成功终态 / 橄榄 olive · 第 1 档
+ * --color-status-offer-bg           #EDF7EB     #2A3329     状态 chip「Offer」底
+ * --color-status-offer-border       #CEE6CA     #3D4D3A     状态 chip「Offer」边框
+ * --color-status-accepted-fg        #2B5A23     #B5DAAE     状态 chip「已承诺」文字 · 成功终态 / 橄榄 olive · 第 2 档
+ * --color-status-accepted-bg        #DAEFD6     #2C3D29     状态 chip「已承诺」底
+ * --color-status-accepted-border    #B8D9B2     #455D41     状态 chip「已承诺」边框
+ * --color-status-joined-fg          #194312     #C5EBBE     状态 chip「已入职」文字 · 成功终态 / 橄榄 olive · 第 3 档
+ * --color-status-joined-bg          #B3DBAC     #33512E     状态 chip「已入职」底
+ * --color-status-joined-border      #8BB984     #547B4D     状态 chip「已入职」边框
+ * --color-status-unsuitable-fg      #714A60     #DAB9CB     状态 chip「不合适」文字 · 结束终态 / 干玫瑰 mauve · 第 1 档
+ * --color-status-unsuitable-bg      #FBF0F5     #362D32     状态 chip「不合适」底
+ * --color-status-unsuitable-border  #EED6E3     #52424B     状态 chip「不合适」边框
+ * --color-status-withdrawn-fg       #673D56     #E7C1D5     状态 chip「主动放弃」文字 · 结束终态 / 干玫瑰 mauve · 第 2 档
+ * --color-status-withdrawn-bg       #F7E1EC     #43323B     状态 chip「主动放弃」底
+ * --color-status-withdrawn-border   #E4C3D4     #654D5A     状态 chip「主动放弃」边框
+ * --color-status-rejected-fg        #4E2A3F     #F7D1E6     状态 chip「已落选」文字 · 结束终态 / 干玫瑰 mauve · 第 3 档
+ * --color-status-rejected-bg        #E8C1D6     #5A3E4D     状态 chip「已落选」底
+ * --color-status-rejected-border    #C89CB4     #876276     状态 chip「已落选」边框
+ * --color-listing-open-fg           #25541D     #B2DBAA     四分徽标「确认在招」文字（图标 badge-check）
+ * --color-listing-open-bg           #DAEFD6     #2C3D2A     四分徽标「确认在招」底
+ * --color-listing-open-border       #B2D7AC     #456141     四分徽标「确认在招」边框
+ * --color-listing-verify-fg         #635546     #C6BCB0     四分徽标「待核实」文字（图标 circle-help）
+ * --color-listing-verify-bg         #F2EEE9     #36322E     四分徽标「待核实」底
+ * --color-listing-verify-border     #DBD3CA     #554F47     四分徽标「待核实」边框
+ * --color-listing-lead-fg           #1F1A14     #F5EFE2     四分徽标「特别线索」文字（图标 sparkle）· 荧光笔黄 = 手账高亮
+ * --color-listing-lead-bg           #F9E79F     #5C4F32     四分徽标「特别线索」底 = cream-300
+ * --color-listing-lead-border       #E8C547     #7A6B44     四分徽标「特别线索」边框 = cream-500
+ * --color-listing-excluded-fg       #6B5E4E     #A89E8A     四分徽标「排除记录」文字（图标 archive-x）
+ * --color-listing-excluded-bg       transparent transparent 四分徽标「排除记录」底：空心
+ * --color-listing-excluded-border   #C8BEB0     #4A4338     四分徽标「排除记录」边框 = ink-300
+ * --color-source-fg                 #6B5E4E     #D8CEBA     来源徽标文字（7 种共用，低对比）
+ * --color-source-bg                 #FCF3CF     #3D3524     来源徽标底（7 种共用）
+ * --color-source-border             transparent transparent 来源徽标无边框
+ * --color-source-gmail              #9D587A     #E5A4C2     来源徽标图标色：Gmail · 图标 mail（只染图标，文字不变）
+ * --color-source-calendar           #45703E     #91B78A     来源徽标图标色：Calendar · 图标 calendar（只染图标，文字不变）
+ * --color-source-linkedin           #4D667F     #97ADC5     来源徽标图标色：LinkedIn 导出 · 图标 file-archive（蓝黑墨水，唯一冷色）（只染图标，文字不变）
+ * --color-source-manual             #524536     #978A7C     来源徽标图标色：手动 · 图标 pencil-line（只染图标，文字不变）
+ * --color-source-chat               #B0660C     #F1AD71     来源徽标图标色：聊天 · 图标 message-circle（只染图标，文字不变）
+ * --color-source-import             #7D6F5F     #C6B8A9     来源徽标图标色：导入 · 图标 file-input（只染图标，文字不变）
+ * --color-source-research           #94771A     #D5BB76     来源徽标图标色：研究请求 · 图标 flask-conical（只染图标，文字不变）
+ * --color-pending-fg                #6B5E4E     #A89E8A     「待确认」占位文字 = ink-500
+ * --color-pending-bg                #FEF9E7     #221E17     「待确认」占位底 = cream-100
+ * --color-pending-border            #F4D03F     #5C4F32     「待确认」占位 1px dashed 边 = cream-400
+ * --color-review-fg                 #7D4B00     #F2CA8D     「待复核」标记文字（比进行中 amber 偏黄，前导 circle-alert 图标）
+ * --color-review-bg                 #FFF8E1     #433215     「待复核」标记底 = warn-50
+ * --color-review-border             #EBC487     #765723     「待复核」标记边框
+ * --color-health-healthy            #4F7B49     #8FB37E     信息源健康「正常」圆点 = pos-500
+ * --color-health-healthy-bg         #E8F0E0     #2B3426     「正常」状态 pill 底
+ * --color-health-degraded           #D97706     #EC9D53     「降级」圆点 = warn-500
+ * --color-health-degraded-bg        #FFF8E1     #463117     「降级」状态 pill 底
+ * --color-health-auth_required               #9E5B82     #DB9ABE     「需重新授权」圆点（空心环，玫瑰）
+ * --color-health-auth_required-bg            #FCE8F2     #442D3A     「需重新授权」状态 pill 底
+ * --color-health-unavailable        #B8563E     #D88968     「不可用」圆点 = neg-500
+ * --color-health-unavailable-bg     #F5E6DE     #3A2A22     「不可用」状态 pill 底
+ * --color-health-disabled           #8B7E6C     #847B68     「已禁用」圆点 = ink-400（空心）
+ * --color-health-disabled-bg        #FCF3CF     #2B261D     「已禁用」状态 pill 底
+ * --color-ghosted-fg                #8B7E6C     #847B68     ghosted 行全部文字 = ink-400；斜体小标「长期沉默 · N 天」用 ink-500
+ * --color-override-fg               #3D342A     #F5EFE2     「已手动覆盖」图标 pencil-line 颜色
+ * --color-override-bg               #F9E79F     #5C4F32     「已手动覆盖」图标圆底 = cream-300（用户的手迹 = 荧光笔）
+ * --color-diff-before-fg            #6B5E4E     #A89E8A     确认卡片 变化前 文字（加 line-through）
+ * --color-diff-after-fg             #1F1A14     #F5EFE2     确认卡片 变化后 文字
+ * --color-diff-after-bg             #FCF3CF     #3D3524     确认卡片 变化后 高亮底 = cream-200（不用彩色）
+ * --radius-card                     14px        14px        卡片圆角（按钮 / 输入 8px、模态 16px 用 Tailwind 默认）
+ * --ease-quiet                      —           —           全部过渡曲线
+ * --animate-pulse-soft              —           —           聊天 FAB 2.8s 软脉冲、按住录音琥珀脉冲
+ * --animate-typing                  —           —           AI 输入中三点（错位 .15s 由 animation-delay 实现）
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+@keyframes pulse-soft { 0%, 100% { box-shadow: 0 0 0 0 rgba(217,119,6,.35); } 50% { box-shadow: 0 0 0 10px rgba(217,119,6,0); } }
+@keyframes typing-bounce { 0%, 80%, 100% { transform: translateY(0); opacity: .5; } 40% { transform: translateY(-4px); opacity: 1; } }
+
+/* ── 原型基线（正式工程由 Tailwind preflight 承担） */
+*,*::before,*::after{box-sizing:border-box}
+html{font-size:16px;-webkit-text-size-adjust:100%}
+body{margin:0;line-height:1.75;-webkit-font-smoothing:antialiased}
+h1,h2,h3,p{margin:0}
+a{color:var(--color-ink-900);text-decoration:none}
+a:hover{color:var(--color-ink-700)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--color-cream-500);outline-offset:2px}
+::selection{background:var(--color-cream-300)}
+[data-theme="dark"] body{background:radial-gradient(1200px 800px at 80% -10%,rgba(228,195,98,.07),transparent 60%),radial-gradient(900px 700px at -10% 110%,rgba(228,195,98,.04),transparent 60%),var(--color-cream-100)}
+select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B5E4E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;padding-right:28px!important}
+.lift{transition:transform 200ms var(--ease-quiet),box-shadow 200ms var(--ease-quiet)}
+.lift:hover{transform:translateY(-2px);box-shadow:0 2px 4px rgba(95,75,40,.06),0 14px 28px -12px rgba(95,75,40,.18)}
+.ghosted,.ghosted *{color:var(--color-ghosted-fg)!important}
+.ghosted .chip{filter:saturate(.35);opacity:.8}
+.hov:hover{background:var(--color-cream-100)!important}
+.hov-soft:hover{background:rgba(252,243,207,.6)!important}
+[data-theme="dark"] .hov-soft:hover{background:var(--color-cream-300)!important}
+.hov-ink:hover{background:var(--color-ink-700)!important}
+textarea{resize:vertical}
+
+body{overflow-x:auto}
+
+</style>
+<script>
+// Mita JobPilot · 原型共享模块 v2（第一版 · 全手动录入）：三语字典 · 示例数据 · Lucide 图标 · 通用计算
+// 经典脚本，挂到 window.JP；加载完成后派发 jp-ready 事件。
+window.JP = (function () {
+const LANGS = ['zh', 'ja', 'en'];
+const STR = {
+brand_sub:['你的求职副驾','あなたの就活コパイロット','Your job-hunt copilot'],
+nav_work:['工作','ワーク','Work'],nav_inbox:['收件','受信','Inbox'],nav_system:['系统','システム','System'],
+nav_dashboard:['看板','ダッシュボード','Dashboard'],nav_chat:['对话','チャット','Chat'],nav_pipeline:['申请 Pipeline','選考 Pipeline','Pipeline'],nav_jobs:['岗位','求人','Jobs'],nav_interviews:['面试','面接','Interviews'],nav_memory:['记忆收件箱','メモリー受信箱','Memory inbox'],nav_review:['待复核','要レビュー','Needs review'],nav_research:['研究请求','リサーチ依頼','Research requests'],nav_sources:['信息源','データソース','Sources'],nav_settings:['设置','設定','Settings'],
+collapse:['收起','折りたたむ','Collapse'],soon:['Soon','Soon','Soon'],
+search_ph:['搜索公司、岗位或邮件主题…','会社・求人・メール件名を検索…','Search companies, roles, email subjects…'],
+cycle_manage:['管理周期…','サイクルを管理…','Manage cycles…'],cycle_current:['当前','現在','Current'],
+type_newgrad:['新卒','新卒','New grad'],type_intern:['实习','インターン','Internship'],type_mid:['中途','中途','Mid-career'],
+theme_toggle:['切换主题','テーマ切替','Toggle theme'],
+greeting_newgrad:['下午好，先看今天要做的事','こんにちは、まずは今日のことから','Good afternoon, let\u2019s start with today'],
+greeting_mid:['下午好，跳槽的事一步一步来','こんにちは、転職も一歩ずつ','Good afternoon, one step at a time'],
+greeting_intern:['下午好，先看今天要做的事','こんにちは、まずは今日のことから','Good afternoon, let\u2019s start with today'],
+kpi_active:['进行中流程','進行中の選考','Active processes'],kpi_active_sub:['按显示状态计','表示ステータスで集計','By displayed status'],
+kpi_deadlines:['本周截止','今週の締切','Due this week'],kpi_deadlines_sub:['周一至周日','月曜〜日曜','Mon–Sun'],
+kpi_interviews:['7 天内面试','7 日以内の面接','Interviews in 7 days'],kpi_interviews_sub:['另有 {n} 场待排期','ほか {n} 件が日程未定','Plus {n} to be scheduled'],
+kpi_review:['待复核','要レビュー','Needs review'],kpi_review_sub:['在申请详情里处理','選考詳細で処理','Handle in application details'],
+sec_today:['今日与本周','今日と今週','Today and this week'],day_today:['今天','今日','Today'],day_tomorrow:['明天','明日','Tomorrow'],day_later:['本周稍后','今週後半','Later this week'],items_unit:['项','件','items'],
+type_deadline:['截止','締切','Deadline'],type_interview:['面试','面接','Interview'],type_followup:['需跟进','要フォロー','Follow-up'],type_portal:['门户待查看','マイページ確認','Portal to check'],
+btn_portal:['前往官方入口','公式ページへ','Open official portal'],btn_backfill:['回填结果','結果を記録','Record outcome'],btn_goto_app:['跳到申请','選考を開く','Go to application'],
+sec_upcoming:['后续面试','今後の面接','Upcoming interviews'],sub_confirmed:['已确认','確定','Confirmed'],sub_unscheduled:['待排期','日程未定','To be scheduled'],none_unscheduled:['暂无待排期','日程未定の面接はありません','Nothing waiting to be scheduled'],
+pending_time:['时间待确认','時間は未確認','Time unconfirmed'],pending_link:['会议链接待确认','会議リンクは未確認','Meeting link unconfirmed'],pending_tool:['工具待确认','ツールは未確認','Tool unconfirmed'],
+online:['线上','オンライン','Online'],onsite:['线下','対面','On-site'],
+sec_recent:['最近变化','最近の変化','Recent changes'],confidence:['置信度','信頼度','Confidence'],review_tag:['待复核','要レビュー','Needs review'],act_accept:['接受','承認','Accept'],act_fix:['修正…','修正…','Correct…'],confirmed_by_user:['已人工确认','手動で確認済み','Confirmed manually'],
+sec_tips:['Mita 的提醒','Mita からのメモ','Notes from Mita'],coming_soon:['即将推出','近日公開','Coming soon'],
+coming_soon_tips:['第一版尚未接入 AI 提醒','初版では AI メモは未対応','AI notes are not part of this first version'],
+coming_soon_sources:['第一版尚未接入 Gmail · Calendar','初版では Gmail · Calendar は未接続','Gmail · Calendar are not connected in this first version'],
+sec_dist:['状态分布','ステータス分布','Status distribution'],apps_unit:['条申请','件の選考','applications'],by_display:['按显示状态计','表示ステータスで集計','by displayed status'],
+g_notstarted:['未开始','未着手','Not started'],g_active:['进行中','進行中','In progress'],g_success:['成功终态','成功','Success'],g_closed:['结束终态','終了','Closed'],
+st_unrecorded:['未记录','未記録','Unrecorded'],st_considering:['考虑中','検討中','Considering'],st_preparing:['准备申请','応募準備','Preparing'],st_applied:['已申请','応募済み','Applied'],st_assessment:['笔试或课题','筆記・課題','Assessment'],st_interviewing:['面试中','面接中','Interviewing'],st_offer:['Offer','内定','Offer'],st_accepted:['已承诺','内定承諾','Accepted'],st_joined:['已入职','入社済み','Joined'],st_rejected:['已落选','不採用','Rejected'],st_withdrawn:['主动放弃','辞退','Withdrawn'],st_unsuitable:['不合适','不適合','Unsuitable'],
+sec_sources:['信息源','データソース','Sources'],
+overridden:['已手动覆盖','手動で上書き','Manually overridden'],auto_status:['自动状态','自動ステータス','Auto status'],user_status:['用户状态','ユーザー状態','User status'],derived_from:['由事件推导','イベントから推定','derived from event'],ghosted:['长期沉默','長期間応答なし','Gone quiet'],days:['天','日','days'],
+title_pipeline:['申请 Pipeline','選考 Pipeline','Pipeline'],add_app:['添加申请','選考を追加','Add application'],
+f_all:['全部','すべて','All'],f_keyword_ph:['公司或岗位…','会社名・職種…','Company or role…'],
+col_company:['公司','会社','Company'],col_role:['岗位','職種','Role'],col_status:['状态','ステータス','Status'],col_last:['最近事件','最新イベント','Latest event'],col_next:['下一步 / 截止','次のステップ・締切','Next / deadline'],col_source:['来源','ソース','Sources'],open:['打开','開く','Open'],
+empty_rest:['其余状态暂无申请','その他のステータスに該当なし','No applications in the other states'],
+empty_title:['没有匹配的申请','該当する選考はありません','No matching applications'],empty_body:['换个筛选条件，或添加一条新申请。','条件を変えるか、新しい選考を追加してください。','Try another filter, or add a new application.'],
+empty_dash_title:['这个周期还没有申请记录','このサイクルにはまだ選考がありません','No applications in this cycle yet'],empty_dash_body:['先添加一条申请，看板会随之出现待办与面试。','まず選考を追加すると、ToDo と面接がここに表示されます。','Add an application first; to-dos and interviews will appear here.'],
+next_interview:['面试','面接','Interview'],next_deadline:['截止','締切','Deadline'],next_reply:['回复期限','回答期限','Reply by'],
+btn_change_status:['改状态','ステータス変更','Change status'],set_on:['设定于','設定','Set on'],
+sec_timeline:['事件时间线','イベントタイムライン','Event timeline'],timeline_note:['只追加，不删除','追記のみ・削除なし','Append-only'],log_event:['记事件','イベントを記録','Log event'],
+event_type:['事件类型','イベント種別','Event type'],event_time:['时间','日時','Time'],event_summary:['摘要','要約','Summary'],time_ph:['2026-10-01（水）14:00','2026-10-01（水）14:00','2026-10-01（水）14:00'],summary_ph:['发生了什么…','何があったか…','What happened…'],
+ev_email:['邮件','メール','Email'],ev_invite:['面试邀请','面接案内','Interview invite'],ev_interview:['面试安排','面接日程','Interview scheduled'],ev_confirm:['申请确认','応募受付','Application confirmed'],ev_status:['状态变更（用户）','ステータス変更（ユーザー）','Status change (user)'],ev_portal:['门户通知','マイページ通知','Portal notice'],ev_record:['记录申请','応募を記録','Application recorded'],ev_note:['备注','メモ','Note'],ev_result:['门户结果','マイページ結果','Portal outcome'],
+email_subject:['邮件主题','件名','Subject'],
+sec_interviews:['面试','面接','Interviews'],sec_portal:['门户待查看','マイページ確認','Portal to check'],sec_notes:['备注','メモ','Notes'],notes_ph:['写点什么…','メモを書く…','Write a note…'],btn_save_note:['保存为事件','イベントとして保存','Save as event'],
+save:['保存','保存','Save'],added:['已添加','追加しました','Added'],required_note:['公司与岗位为必填','会社名と職種は必須です','Company and role are required'],source_note:['来源将记为「手动」','ソースは「手動」として記録されます','Source will be recorded as Manual'],
+company_ph:['公司名（原文）','会社名（原文）','Company (as written)'],role_ph:['岗位名（原文）','職種名（原文）','Role (as written)'],initial_status:['初始状态','初期ステータス','Initial status'],job_url:['岗位链接','求人リンク','Job URL'],url_ph:['https://…','https://…','https://…'],
+cc_eyebrow:['提议','提案','Proposal'],cc_before:['变化前','変更前','Before'],cc_after:['变化后','変更後','After'],cc_confirm:['确认','確認','Confirm'],cc_cancel:['取消','キャンセル','Cancel'],cc_note_override:['用户状态会覆盖自动状态','ユーザー状態が自動ステータスを上書きします','The user status overrides the auto status'],cc_change_to:['将用户状态改为','ユーザー状態を変更','Set user status to'],cc_done:['已确认','確認済み','Confirmed'],
+received:['收到','受信','Received'],reply_by:['回复期限','回答期限','Reply by'],from_email:['邮件原文','メール原文','From the email'],
+belongs_to:['这条申请属于','この選考の所属サイクル：','This application belongs to'],switch_to:['切换到','に切り替える','Switch to'],
+title_settings:['设置','設定','Settings'],seg_sources:['信息源','データソース','Sources'],seg_settings:['设置','設定','Settings'],
+sec_cycles:['求职周期','就活サイクル','Job-hunt cycles'],new_cycle:['新建周期','サイクルを新規作成','New cycle'],cycle_name:['名称','名称','Name'],cycle_type:['类型','種別','Type'],region:['区域包','地域パック','Region pack'],start:['开始','開始','Start'],end:['结束','終了','End'],apps_col:['申请数','選考数','Applications'],set_current:['设为当前','現在に設定','Set as current'],cycle_added:['已创建周期','サイクルを作成しました','Cycle created'],cycle_name_ph:['如 2027 新卒','例：2027 新卒','e.g. 2027 New grad'],month_ph:['2026-03','2026-03','2026-03'],
+region_jp:['日本','日本','Japan'],region_us:['美国','米国','United States'],region_eu:['欧洲','欧州','Europe'],region_generic:['通用','汎用','Generic'],
+sec_tz_lang:['时区与语言','タイムゾーンと言語','Time zone and language'],timezone:['时区','タイムゾーン','Time zone'],ui_lang:['界面语言','表示言語','Interface language'],tz_note:['所有时间按此时区展示；用户数据保持原文。','すべての時刻はこのタイムゾーンで表示。ユーザーデータは原文のまま。','All times are shown in this zone; your data stays as written.'],
+lang_zh:['简体中文','简体中文','简体中文'],lang_ja:['日本語','日本語','日本語'],lang_en:['English','English','English'],
+empty_sources_title:['第一版尚未接入信息源','初版ではデータソース未接続','No sources in this first version'],empty_sources_body:['Gmail · Calendar · LinkedIn 导出 将在后续版本接入；目前所有记录都是手动录入。','Gmail · Calendar · LinkedIn エクスポートは今後のバージョンで対応。現在はすべて手動入力です。','Gmail, Calendar and LinkedIn export arrive in a later version; for now every record is entered by hand.'],
+};
+function dict(lang) { const i = Math.max(0, LANGS.indexOf(lang)); const o = {}; for (const k in STR) o[k] = STR[k][i]; return o; }
+const L = (v, lang) => v == null ? '' : (typeof v === 'string' ? v : (v[lang] ?? v.zh ?? ''));
+const HAND_UI = { zh: '"Ma Shan Zheng","Kalam",cursive', ja: '"Klee One","Kalam",cursive', en: '"Indie Flower","Kalam",cursive' };
+
+const P = {
+dashboard:'<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
+pipeline:'<path d="M6 5v11"/><path d="M12 5v6"/><path d="M18 5v14"/>',
+jobs:'<path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/>',
+calendar:'<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+memory:'<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
+inbox:'<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+flask:'<path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/>',
+plug:'<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
+settings:'<line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/>',
+collapse:'<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/>',
+search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+chevron:'<path d="m6 9 6 6 6-6"/>',
+ext:'<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+moon:'<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+user:'<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+chat:'<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+check:'<path d="M20 6 9 17l-5-5"/>',x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
+mail:'<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+video:'<path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
+pin:'<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+flag:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>',
+globe:'<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+followup:'<polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/>',
+alert:'<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+pencil:'<path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/>',
+ghost:'<path d="M9 10h.01"/><path d="M15 10h.01"/><path d="M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z"/>',
+arrow:'<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+note:'<path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9Z"/><path d="M15 3v4a2 2 0 0 0 2 2h4"/>',
+archive:'<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>',
+fileIn:'<path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M2 15h10"/><path d="m9 18 3-3-3-3"/>',
+checkCircle:'<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+link:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+clock:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+};
+function icon(React, name, size, style) {
+  return React.createElement('svg', { width: size || 18, height: size || 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true, style: Object.assign({ flexShrink: 0 }, style || {}), dangerouslySetInnerHTML: { __html: P[name] || '' } });
+}
+function icons(React) {
+  const o = {}; for (const k in P) o[k] = icon(React, k, 18);
+  o.ext12 = icon(React, 'ext', 12); o.pencil11 = icon(React, 'pencil', 11); o.pencil12 = icon(React, 'pencil', 12); o.alert12 = icon(React, 'alert', 12);
+  o.check14 = icon(React, 'check', 14); o.chevron14 = icon(React, 'chevron', 14); o.search16 = icon(React, 'search', 16); o.ghost12 = icon(React, 'ghost', 12);
+  o.arrow14 = icon(React, 'arrow', 14); o.link12 = icon(React, 'link', 12); o.note28 = icon(React, 'note', 28); o.plug28 = icon(React, 'plug', 28); o.x14 = icon(React, 'x', 14);
+  o.calendar14 = icon(React, 'calendar', 14); o.video13 = icon(React, 'video', 13); o.plus16 = icon(React, 'plus', 16); o.pencil14 = icon(React, 'pencil', 14);
+  return o;
+}
+
+const GROUPS = [['notstarted', ['unrecorded', 'considering', 'preparing']], ['active', ['applied', 'assessment', 'interviewing']], ['success', ['offer', 'accepted', 'joined']], ['closed', ['unsuitable', 'withdrawn', 'rejected']]];
+const ALL_STATES = GROUPS.flatMap(g => g[1]);
+const groupOf = s => { for (const [g, ss] of GROUPS) if (ss.includes(s)) return g; };
+const GCOL = { notstarted: 'var(--color-status-preparing-bg)', active: 'var(--color-status-interviewing-bg)', success: 'var(--color-status-joined-bg)', closed: 'var(--color-status-rejected-bg)' };
+const chip = (s, t) => ({ key: s, label: t['st_' + s], fg: 'var(--color-status-' + s + '-fg)', bg: 'var(--color-status-' + s + '-bg)', bd: 'var(--color-status-' + s + '-border)' });
+const SOURCES = { gmail: { label: 'Gmail', icon: 'mail' }, calendar: { label: 'Calendar', icon: 'calendar' }, linkedin: { label: { zh: 'LinkedIn 导出', ja: 'LinkedIn エクスポート', en: 'LinkedIn export' }, icon: 'archive' }, manual: { label: { zh: '手动', ja: '手動', en: 'Manual' }, icon: 'pencil' }, chat: { label: { zh: '聊天', ja: 'チャット', en: 'Chat' }, icon: 'chat' }, import: { label: { zh: '导入', ja: 'インポート', en: 'Import' }, icon: 'fileIn' }, research: { label: { zh: '研究请求', ja: 'リサーチ依頼', en: 'Research' }, icon: 'flask' } };
+function badge(React, key, lang) { const s = SOURCES[key]; return { key, label: L(s.label, lang), iconEl: icon(React, s.icon, 11, { color: 'var(--color-source-' + key + ')' }) }; }
+
+// ── 示例数据（全部虚构；第一版全部手动录入）
+const TODAY = '2026-09-17（木）';
+const COMPANIES = {
+  acme: { name: '株式会社アクメ', alt: 'Acme Robotics', industry: { zh: '机器人', ja: 'ロボティクス', en: 'Robotics' }, url: 'https://careers.example.com/acme' },
+  nimbus: { name: 'Nimbus AI', alt: '', industry: { zh: 'AI 初创', ja: 'AI スタートアップ', en: 'AI startup' }, url: 'https://careers.example.com/nimbus' },
+  kappa: { name: 'Kappa Motors', alt: '', industry: { zh: '自动驾驶', ja: '自動運転', en: 'Autonomous driving' }, url: 'https://careers.example.com/kappa' },
+  hoshino: { name: 'Hoshino Consulting', alt: '', industry: { zh: '咨询', ja: 'コンサルティング', en: 'Consulting' }, url: 'https://careers.example.com/hoshino' },
+  meridian: { name: 'Meridian Bank', alt: '', industry: { zh: '金融', ja: '金融', en: 'Finance' }, url: 'https://careers.example.com/meridian' },
+  sora: { name: 'Sora Devices', alt: '', industry: { zh: '硬件', ja: 'ハードウェア', en: 'Hardware' }, url: 'https://careers.example.com/sora' },
+};
+const BASE_CYCLES = [
+  { id: 'c2027', name: '2027 新卒', type: 'newgrad', region: 'jp', start: '2026-03', end: '2027-04' },
+  { id: 'c2029', name: '2029 转职', type: 'mid', region: 'jp', start: '2028-10', end: '2029-06' },
+];
+function extraCycles() { try { return JSON.parse(localStorage.getItem('jp.cycles.extra') || '[]'); } catch (e) { return []; } }
+function allCycles() { return BASE_CYCLES.concat(extraCycles()); }
+function saveExtraCycle(c) { const x = extraCycles(); x.push(c); localStorage.setItem('jp.cycles.extra', JSON.stringify(x)); }
+const APPS = [
+  { id: 'acme-are', cycle: 'c2027', co: 'acme', role: 'Applied Research Engineer', track: 'newgrad', auto: 'applied', autoFrom: 'エントリー受付完了のお知らせ', autoAt: '2026-09-02（水）10:03', user: 'interviewing', userSetAt: '2026-09-15（火）20:30', last: { date: '2026-09-16（水）11:05', text: { zh: '面试安排 · 1次面接 · 2026-09-22（火）14:00', ja: '面接日程 · 1次面接 · 2026-09-22（火）14:00', en: 'Interview scheduled · 1次面接 · 2026-09-22（火）14:00' } }, next: { kind: 'interview', date: '2026-09-22（火）14:00', label: '1次面接' }, detail: true },
+  { id: 'nimbus-mle', cycle: 'c2027', co: 'nimbus', role: 'Machine Learning Engineer', track: 'newgrad', auto: null, user: 'assessment', last: { date: '2026-09-13（日）09:40', text: { zh: '邮件 · 收到课题「コーディング課題のご案内」', ja: 'メール · 課題「コーディング課題のご案内」を受信', en: 'Email · assignment "コーディング課題のご案内" received' } }, next: { kind: 'deadline', date: '2026-09-20（日）23:59', label: 'コーディング課題 提出' } },
+  { id: 'kappa-se', cycle: 'c2027', co: 'kappa', role: 'Software Engineer', track: 'newgrad', auto: 'interviewing', autoFrom: '【選考のご案内】次回面接について', autoAt: '2026-09-16（水）18:40', user: null, last: { date: '2026-09-16（水）18:40', text: { zh: '面试邀请？·「【選考のご案内】次回面接について」', ja: '面接案内？·「【選考のご案内】次回面接について」', en: 'Interview invite? · "【選考のご案内】次回面接について"' }, review: true }, next: { kind: 'reply', date: '2026-09-19（土）', label: { zh: '回复 2次面接 日程候选', ja: '2次面接の候補日を回答', en: 'Reply with 2次面接 slots' } } },
+  { id: 'hoshino-pm', cycle: 'c2027', co: 'hoshino', role: 'AI Product Manager', track: 'newgrad', auto: null, user: 'interviewing', last: { date: '2026-09-17（木）09:12', text: { zh: '门户通知 ·「マイページをご確認ください」', ja: 'マイページ通知 ·「マイページをご確認ください」', en: 'Portal notice · "マイページをご確認ください"' } }, next: { kind: 'interview', date: '2026-10-01（木）14:00', label: 'ケース面接' } },
+  { id: 'meridian-se', cycle: 'c2027', co: 'meridian', role: 'Software Engineer', track: 'newgrad', auto: null, user: 'applied', ghostedDays: 46, last: { date: '2026-08-02（日）', text: { zh: '记录申请 · 已申请', ja: '応募を記録 · 応募済み', en: 'Recorded · Applied' } }, next: null },
+  { id: 'sora-fde', cycle: 'c2027', co: 'sora', role: 'Forward Deployed Engineer', track: 'newgrad', auto: null, user: 'considering', last: { date: '2026-09-11（金）15:02', text: { zh: '记录申请 · 考虑中', ja: '応募を記録 · 検討中', en: 'Recorded · Considering' } }, next: { kind: 'interview', date: '2026-09-18（金）16:00', label: 'カジュアル面談' } },
+  { id: 'sora-se', cycle: 'c2027', co: 'sora', role: 'Software Engineer', track: 'newgrad', auto: null, user: 'preparing', last: { date: '2026-09-12（土）10:20', text: { zh: '记录申请 · 准备申请', ja: '応募を記録 · 応募準備', en: 'Recorded · Preparing' } }, next: { kind: 'deadline', date: '2026-09-30（水）17:00', label: 'ES 提出' } },
+  { id: 'acme-mle', cycle: 'c2027', co: 'acme', role: 'Machine Learning Engineer', track: 'intern', auto: null, user: 'offer', last: { date: '2026-06-30（火）12:10', text: '「サマーインターン合格のご連絡」' }, next: null },
+  { id: 'meridian-pm', cycle: 'c2027', co: 'meridian', role: 'AI Product Manager', track: 'newgrad', auto: null, user: 'unsuitable', last: { date: '2026-09-05（土）21:40', text: { zh: '改状态 · 不合适 · 要求金融行业经验', ja: 'ステータス変更 · 不適合 · 金融業界経験が必須', en: 'Status change · Unsuitable · requires finance experience' } }, next: null },
+  { id: 'kappa-mle', cycle: 'c2027', co: 'kappa', role: 'Machine Learning Engineer', track: 'intern', auto: null, user: 'withdrawn', last: { date: '2026-06-20（土）09:00', text: { zh: '改状态 · 主动放弃 · 与实习时间重叠', ja: 'ステータス変更 · 辞退 · インターン期間と重複', en: 'Status change · Withdrawn · overlaps another internship' } }, next: null },
+  { id: 'nimbus-fde', cycle: 'c2027', co: 'nimbus', role: 'Forward Deployed Engineer', track: 'intern', auto: null, user: 'rejected', last: { date: '2026-07-08（水）17:30', text: '「選考結果のご連絡」' }, next: null },
+];
+const shown = a => a.user || a.auto || 'unrecorded';
+const app = id => APPS.find(a => a.id === id);
+const coOf = a => a.co ? COMPANIES[a.co] : { name: a.company, alt: '', industry: '', url: a.url || '' };
+const INTERVIEWS = [
+  { id: 'i-sora', app: 'sora-fde', date: '2026-09-18（金）', time: '16:00', round: 'カジュアル面談', mode: 'online', tool: 'Google Meet', link: 'https://meet.example.com/sora-casual', tag: 'day_tomorrow' },
+  { id: 'i-acme', app: 'acme-are', date: '2026-09-22（火）', time: '14:00', round: '1次面接', mode: 'online', tool: 'Google Meet', link: 'https://meet.example.com/acme-r1' },
+  { id: 'i-nimbus', app: 'nimbus-mle', date: '2026-09-25（金）', time: '10:00', round: '技術面接', mode: 'online', tool: 'Zoom', link: null },
+  { id: 'i-hoshino', app: 'hoshino-pm', date: '2026-10-01（木）', time: '14:00', round: 'ケース面接', mode: 'onsite', tool: '東京・丸の内オフィス', link: null },
+  { id: 'i-kappa', app: 'kappa-se', date: null, time: null, round: '2次面接', mode: 'online', tool: null, link: null, note: '来週中に日程調整いたします', replyBy: '2026-09-19（土）' },
+];
+const EVENTS = { 'acme-are': [
+  { id: 'e1', time: '2026-09-16（水）11:05', type: 'interview', summary: { zh: '1次面接 · 2026-09-22（火）14:00 JST · 线上 · Google Meet', ja: '1次面接 · 2026-09-22（火）14:00 JST · オンライン · Google Meet', en: '1次面接 · 2026-09-22（火）14:00 JST · online · Google Meet' } },
+  { id: 'e2', time: '2026-09-16（水）09:40', type: 'portal', summary: { zh: '门户有新通知，需登录查看', ja: 'マイページに新しいお知らせ · ログインして確認', en: 'New notice on the portal · sign in to view' }, subject: 'マイページに新しいお知らせがあります' },
+  { id: 'e3', time: '2026-09-15（火）20:30', type: 'status', summary: { zh: '已申请 → 面试中（用户状态）', ja: '応募済み → 面接中（ユーザー状態）', en: 'Applied → Interviewing (user status)' }, overridden: true },
+  { id: 'e4', time: '2026-09-14（月）17:22', type: 'invite', summary: { zh: '疑似 1 次面试邀请', ja: '1次面接の案内と推定', en: 'Likely a first-round interview invite' }, subject: '【株式会社アクメ】1次面接のご案内', conf: 0.58, review: true },
+  { id: 'e5', time: '2026-09-02（水）10:03', type: 'confirm', summary: { zh: '申请受理确认 · 自动状态 → 已申请', ja: '応募受付確認 · 自動ステータス → 応募済み', en: 'Application received · auto status → Applied' }, subject: 'エントリー受付完了のお知らせ' },
+  { id: 'e6', time: '2026-08-28（金）21:10', type: 'record', summary: { zh: '记录申请 · 考虑中', ja: '応募を記録 · 検討中', en: 'Recorded · Considering' } },
+] };
+const EVENT_ICON = { interview: 'calendar', portal: 'globe', status: 'pencil', invite: 'mail', confirm: 'checkCircle', record: 'note', email: 'mail', result: 'globe', note: 'note' };
+const LOG_TYPES = ['email', 'confirm', 'invite', 'interview', 'portal', 'result', 'note'];
+const DASH = {
+  todos: [
+    { label: 'day_today', items: [
+      { type: 'followup', app: 'kappa-se', detail: { zh: '回复 2次面接 日程候选 · 期限 2026-09-19（土）', ja: '2次面接の候補日を回答 · 期限 2026-09-19（土）', en: 'Reply with 2次面接 slots · by 2026-09-19（土）' }, date: '2026-09-19（土）', rel: { zh: '2 天后', ja: '2 日後', en: 'in 2 days' } },
+      { type: 'portal', app: 'hoshino-pm', detail: '「マイページをご確認ください」', date: '2026-09-17（木）09:12', rel: { zh: '今天记录', ja: '今日記録', en: 'logged today' } },
+      { type: 'portal', app: 'acme-are', detail: '「マイページに新しいお知らせがあります」', date: '2026-09-16（水）09:40', rel: { zh: '昨天记录', ja: '昨日記録', en: 'logged yesterday' } },
+    ] },
+    { label: 'day_tomorrow', items: [
+      { type: 'interview', app: 'sora-fde', detail: { zh: 'カジュアル面談 · 线上 · Google Meet', ja: 'カジュアル面談 · オンライン · Google Meet', en: 'カジュアル面談 · online · Google Meet' }, date: '2026-09-18（金）16:00', rel: { zh: '明天', ja: '明日', en: 'tomorrow' } },
+    ] },
+    { label: 'day_later', items: [
+      { type: 'deadline', app: 'nimbus-mle', detail: { zh: 'コーディング課題 提出', ja: 'コーディング課題 提出', en: 'Submit コーディング課題' }, date: '2026-09-20（日）23:59', rel: { zh: '3 天后', ja: '3 日後', en: 'in 3 days' } },
+    ] },
+  ],
+  recent: [
+    { id: 'r1', time: '2026-09-17（木）09:12', app: 'hoshino-pm', summary: { zh: '门户通知 ·「マイページをご確認ください」', ja: 'マイページ通知 ·「マイページをご確認ください」', en: 'Portal notice · "マイページをご確認ください"' } },
+    { id: 'r2', time: '2026-09-16（水）18:40', app: 'kappa-se', summary: { zh: '面试邀请？·「【選考のご案内】次回面接について」', ja: '面接案内？·「【選考のご案内】次回面接について」', en: 'Interview invite? · "【選考のご案内】次回面接について"' }, conf: 0.61, review: true },
+    { id: 'r3', time: '2026-09-16（水）11:05', app: 'acme-are', summary: { zh: '面试安排 · 1次面接 · 2026-09-22（火）14:00 JST', ja: '面接日程 · 1次面接 · 2026-09-22（火）14:00 JST', en: 'Interview scheduled · 1次面接 · 2026-09-22（火）14:00 JST' } },
+    { id: 'r4', time: '2026-09-15（火）20:30', app: 'acme-are', summary: { zh: '状态变更（用户）· 已申请 → 面试中', ja: 'ステータス変更（ユーザー）· 応募済み → 面接中', en: 'Status change (user) · Applied → Interviewing' }, overridden: true },
+  ],
+};
+
+// ── 通用计算
+function hydrate(React, a, t, lang) {
+  const c = coOf(a), s = shown(a), overridden = !!(a.user && a.auto && a.user !== a.auto);
+  return { id: a.id, company: c.name, alt: c.alt, industry: L(c.industry, lang), role: a.role, track: t['type_' + a.track], trackKey: a.track, url: c.url,
+    st: chip(s, t), autoSt: a.auto ? chip(a.auto, t) : null, overridden, overrideTip: overridden ? t.overridden + ' · ' + t.auto_status + ': ' + t['st_' + a.auto] : '',
+    ghosted: !!a.ghostedDays, ghostLabel: a.ghostedDays ? t.ghosted + ' · ' + a.ghostedDays + ' ' + t.days : '', rowClass: a.ghostedDays ? 'ghosted' : '',
+    badges: [badge(React, 'manual', lang)], lastDate: a.last ? a.last.date : '', lastText: a.last ? L(a.last.text, lang) : '', lastBadge: badge(React, 'manual', lang), lastReview: !!(a.last && a.last.review),
+    next: a.next ? { kind: t['next_' + a.next.kind], date: a.next.date, label: L(a.next.label, lang) } : null, hasNext: !!a.next, noNext: !a.next, href: a.detail ? '03-application.html' : '#' };
+}
+function interview(React, x, t, lang) {
+  const a = app(x.app), c = coOf(a);
+  return { id: x.id, date: x.date || '', time: x.time || '', company: c.name, role: a.role, round: x.round, mode: t[x.mode], modeIcon: icon(React, x.mode === 'onsite' ? 'pin' : 'video', 13),
+    tool: x.tool || '', pendingTool: !x.tool, hasLink: !!x.link, link: x.link || '', linkText: (x.link || '').replace('https://', ''), pendingLink: x.mode === 'online' && !!x.tool && !x.link,
+    badge: badge(React, 'manual', lang), note: x.note || '', replyBy: x.replyBy || '', tag: x.tag ? t[x.tag] : '', href: a.detail ? '03-application.html' : '02-pipeline.html', unscheduled: !x.date };
+}
+function distChart(React, counts) {
+  const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1, x0 = 2, x1 = 318, y0 = 6, h = 22; let x = x0, i = 0; const segs = [];
+  for (const [g] of GROUPS) { const n = counts[g] || 0; if (!n) continue; const w = (x1 - x0) * n / total; const j = k => Math.sin(i * 3.1 + k * 1.7) * 0.9;
+    const d = 'M' + (x + j(0)).toFixed(1) + ' ' + (y0 + j(1)).toFixed(1) + ' L' + (x + w + j(2)).toFixed(1) + ' ' + (y0 + j(3)).toFixed(1) + ' L' + (x + w + j(4)).toFixed(1) + ' ' + (y0 + h + j(5)).toFixed(1) + ' L' + (x + j(6)).toFixed(1) + ' ' + (y0 + h + j(7)).toFixed(1) + ' Z';
+    segs.push(React.createElement('path', { key: g, d, fill: GCOL[g], stroke: 'var(--color-ink-900)', strokeWidth: 1.2, strokeLinejoin: 'round' }));
+    if (w > 18) segs.push(React.createElement('text', { key: g + 't', x: x + w / 2, y: y0 + h / 2 + 4.5, textAnchor: 'middle', fontFamily: 'var(--font-num)', fontSize: 12, fill: 'var(--color-ink-900)' }, String(n)));
+    x += w; i++; }
+  return React.createElement('svg', { viewBox: '0 0 320 40', width: '100%', height: 40, style: { display: 'block', overflow: 'visible' } },
+    React.createElement('line', { x1: x0, x2: x1, y1: 36, y2: 36, stroke: 'var(--color-ink-200)', strokeDasharray: '3 4' }), ...segs);
+}
+// 顶栏 / 侧栏共用值；comp 需实现 setLang / toggleTheme / setCycle，state 需含 lang · langTouched · theme · cycle · cycleOpen
+function shell(comp, React) {
+  const st = comp.state, lang = st.langTouched ? st.lang : (comp.props.lang || st.lang), t = dict(lang), ic = icons(React);
+  const on = 'var(--color-cream-300)', off = 'transparent';
+  const cycles = allCycles(), cur = cycles.find(c => c.id === st.cycle) || cycles[0];
+  const extra = (st.addedApps || []);
+  const appsIn = id => APPS.filter(a => a.cycle === id).concat(extra.filter(a => a.cycle === id));
+  return { lang, t, ic, handFont: HAND_UI[lang] || HAND_UI.zh, today: TODAY,
+    setZh: () => comp.setLang('zh'), setJa: () => comp.setLang('ja'), setEn: () => comp.setLang('en'),
+    langBg: { zh: lang === 'zh' ? on : off, ja: lang === 'ja' ? on : off, en: lang === 'en' ? on : off },
+    themeIcon: icon(React, st.theme === 'dark' ? 'sun' : 'moon', 16), toggleTheme: () => comp.toggleTheme(),
+    cycleOpen: !!st.cycleOpen, toggleCycle: () => comp.setState(s => ({ cycleOpen: !s.cycleOpen })),
+    cycleName: cur.name, cycleObj: cur, cycleApps: appsIn(cur.id), emptyCycle: appsIn(cur.id).length === 0, notEmpty: appsIn(cur.id).length > 0,
+    greeting: t['greeting_' + cur.type] || t.greeting_newgrad,
+    cycles: cycles.map(c => ({ id: c.id, name: c.name, meta: t['type_' + c.type] + ' · ' + t['region_' + c.region] + ' · ' + c.start + ' → ' + c.end + ' · ' + appsIn(c.id).length + ' ' + t.apps_unit, current: c.id === cur.id, pick: () => comp.setCycle(c.id) })),
+    manualBadge: badge(React, 'manual', lang) };
+}
+return { LANGS, STR, dict, L, HAND_UI, icon, icons, GROUPS, ALL_STATES, groupOf, GCOL, chip, SOURCES, badge, TODAY, COMPANIES, BASE_CYCLES, allCycles, saveExtraCycle, APPS, shown, app, coOf, INTERVIEWS, EVENTS, EVENT_ICON, LOG_TYPES, DASH, hydrate, interview, distChart, shell };
+})();
+window.dispatchEvent(new Event('jp-ready'));
+
+</script>
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" rx="28" fill="#FEF9E7"/><circle cx="100" cy="100" r="58" fill="none" stroke="#1F1A14" stroke-width="4"/><path d="M72 128 80 76l20 30 20-30 8 52" fill="none" stroke="#D97706" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg></template>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Kalam:wght@400;700&family=Indie+Flower&family=Klee+One:wght@400;600&family=Fraunces:opsz,wght@9..144,400;9..144,500&family=JetBrains+Mono:wght@400;500&family=Ma+Shan+Zheng&display=swap" rel="stylesheet">
+</helmet>
+<div data-lang="{{ lang }}" data-screen-label="01 看板" style="display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100vh;min-width:1440px;--font-hand-ui:{{ handFont }}">
+  <aside style="border-right:1px solid var(--color-cream-200);padding:16px;display:flex;flex-direction:column;gap:2px;position:sticky;top:0;height:100vh">
+    <a href="01-dashboard.html" style="display:flex;align-items:center;gap:10px;padding:4px 8px 18px;color:inherit">
+      <span style="width:48px;height:48px;display:grid;place-items:center;flex-shrink:0"><svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="var(--color-ink-900)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 3.5C29 3 36.5 10 36.5 19.5S29.5 36.5 20 36.5 3.5 29.5 3.5 20 11 4 20 3.5"></path><path d="M12 27 14.5 13l5.5 9 5.5-9L28 27" stroke="var(--color-accent-amber)" stroke-width="2.2"></path></svg></span>
+      <span style="display:flex;flex-direction:column;line-height:1.05"><span class="hand" style="font-size:20px;color:var(--color-ink-900)">Mita JobPilot</span><span style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--color-ink-500);margin-top:4px">{{ t.brand_sub }}</span></span>
+    </a>
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--color-ink-500);padding:6px 12px 4px">{{ t.nav_work }}</div>
+    <a href="01-dashboard.html" aria-current="page" style="display:flex;align-items:center;gap:12px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;background:var(--color-cream-300);color:var(--color-ink-900)">{{ ic.dashboard }}<span>{{ t.nav_dashboard }}</span></a>
+    <span aria-disabled="true" style="display:flex;align-items:center;gap:12px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;color:var(--color-ink-400)">{{ ic.chat }}<span>{{ t.nav_chat }}</span><span style="margin-left:auto;border-radius:999px;background:var(--color-cream-200);padding:2px 6px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--color-ink-500);line-height:1.2">{{ t.soon }}</span></span>
+    <a href="02-pipeline.html" class="hov-soft" style="display:flex;align-items:center;gap:12px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;color:var(--color-ink-700);transition:background-color 150ms var(--ease-quiet)">{{ ic.pipeline }}<span>{{ t.nav_pipeline }}</span></a>
+    <span aria-disabled="true" style="display:flex;align-items:center;gap:12px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;color:var(--color-ink-400)">{{ ic.jobs }}<span>{{ t.nav_jobs }}</span><span style="margin-left:auto;border-radius:999px;background:var(--color-cream-200);padding:2px 6px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--color-ink-500);line-height:1.2">{{ t.soon }}</span></span>
+    <span aria-disabled="true" style="display:flex;align-items:center;gap:12px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;color:var(--color-ink-400)">{{ ic.calendar }}<span>{{ t.nav_interviews }}</span><span style="margin-left:auto;border-radius:999px;background:var(--color-cream-200);padding:2px 6px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--color-ink-500);line-height:1.2">{{ t.soon }}</span></span>
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--color-ink-500);padding:14px 12px 4px">{{ t.nav_inbox }}</div>
+    <span aria-disabled="true" style="display:flex;align-items:center;gap:12px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;color:var(--color-ink-400)">{{ ic.memory }}<span>{{ t.nav_memory }}</span><span style="margin-left:auto;border-radius:999px;background:var(--color-cream-200);padding:2px 6px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--color-ink-500);line-height:1.2">{{ t.soon }}</span></span>
+    <span aria-disabled="true" style="display:flex;align-items:center;gap:12px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;color:var(--color-ink-400)">{{ ic.inbox }}<span>{{ t.nav_review }}</span><span style="margin-left:auto;border-radius:999px;background:var(--color-cream-200);padding:2px 6px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--color-ink-500);line-height:1.2">{{ t.soon }}</span></span>
+    <span aria-disabled="true" style="display:flex;align-items:center;gap:12px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;color:var(--color-ink-400)">{{ ic.flask }}<span>{{ t.nav_research }}</span><span style="margin-left:auto;border-radius:999px;background:var(--color-cream-200);padding:2px 6px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--color-ink-500);line-height:1.2">{{ t.soon }}</span></span>
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--color-ink-500);padding:14px 12px 4px">{{ t.nav_system }}</div>
+    <a href="12-settings.html#sources" class="hov-soft" style="display:flex;align-items:center;gap:12px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;color:var(--color-ink-700);transition:background-color 150ms var(--ease-quiet)">{{ ic.plug }}<span>{{ t.nav_sources }}</span></a>
+    <a href="12-settings.html" class="hov-soft" style="display:flex;align-items:center;gap:12px;border-radius:8px;padding:8px 12px;font-size:14px;font-weight:500;color:var(--color-ink-700);transition:background-color 150ms var(--ease-quiet)">{{ ic.settings }}<span>{{ t.nav_settings }}</span></a>
+    <button class="hov-soft" style="margin-top:auto;display:flex;align-items:center;gap:12px;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:500;color:var(--color-ink-500);background:transparent;border:0;cursor:pointer;text-align:left">{{ ic.collapse }}<span>{{ t.collapse }}</span></button>
+  </aside>
+  <div style="min-width:0;display:flex;flex-direction:column">
+    <header style="height:56px;border-bottom:1px solid var(--color-cream-200);display:flex;align-items:center;gap:12px;padding:0 24px;position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--color-cream-100) 88%,transparent);backdrop-filter:blur(8px)">
+      <div style="flex:1;max-width:576px;height:36px;display:flex;align-items:center;gap:8px;border:1px solid var(--color-ink-200);border-radius:8px;background:var(--color-cream-50);padding:0 12px;color:var(--color-ink-500);font-size:13px">{{ ic.search16 }}<span style="flex:1">{{ t.search_ph }}</span><kbd style="font-family:var(--font-mono);font-size:10px;border:1px solid var(--color-ink-200);border-radius:4px;padding:0 5px;line-height:1.6;color:var(--color-ink-500)">⌘K</kbd></div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+        <div style="position:relative">
+          <button onClick="{{ toggleCycle }}" aria-haspopup="listbox" aria-expanded="{{ cycleOpen }}" class="hov" style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-radius:8px;border:1px solid var(--color-ink-200);background:var(--color-cream-50);color:var(--color-ink-900);font-size:12px;font-weight:600;cursor:pointer;transition:background-color 150ms var(--ease-quiet)">{{ ic.calendar14 }}<span>{{ cycleName }}</span>{{ ic.chevron14 }}</button>
+          <sc-if value="{{ cycleOpen }}" hint-placeholder-val="{{ false }}">
+            <div class="card-paper" role="listbox" style="position:absolute;right:0;top:40px;width:340px;padding:6px;z-index:20">
+              <sc-for list="{{ cycles }}" as="c" hint-placeholder-count="2">
+                <div role="option" aria-selected="{{ c.current }}" onClick="{{ c.pick }}" class="hov" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer">
+                  <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600;color:var(--color-ink-900)">{{ c.name }}</div><div style="font-size:12px;color:var(--color-ink-500)">{{ c.meta }}</div></div>
+                  <sc-if value="{{ c.current }}" hint-placeholder-val="{{ false }}"><span style="color:var(--color-accent-olive);display:inline-flex">{{ ic.check14 }}</span></sc-if>
+                </div>
+              </sc-for>
+              <a href="12-settings.html" style="display:block;border-top:1px solid var(--color-cream-200);margin-top:4px;padding:8px 10px;font-size:13px;color:var(--color-ink-700)">{{ t.cycle_manage }}</a>
+            </div>
+          </sc-if>
+        </div>
+        <div role="tablist" style="display:inline-flex;border:1px solid var(--color-ink-200);border-radius:8px;background:var(--color-cream-50);padding:2px;gap:2px">
+          <button onClick="{{ setZh }}" style="height:26px;padding:0 8px;border-radius:6px;border:0;font-size:12px;font-weight:600;background:{{ langBg.zh }};color:var(--color-ink-900);cursor:pointer;transition:background-color 150ms var(--ease-quiet)">中</button>
+          <button onClick="{{ setJa }}" style="height:26px;padding:0 8px;border-radius:6px;border:0;font-size:12px;font-weight:600;background:{{ langBg.ja }};color:var(--color-ink-900);cursor:pointer;transition:background-color 150ms var(--ease-quiet)">日</button>
+          <button onClick="{{ setEn }}" style="height:26px;padding:0 8px;border-radius:6px;border:0;font-size:12px;font-weight:600;background:{{ langBg.en }};color:var(--color-ink-900);cursor:pointer;transition:background-color 150ms var(--ease-quiet)">EN</button>
+        </div>
+        <button onClick="{{ toggleTheme }}" title="{{ t.theme_toggle }}" aria-label="{{ t.theme_toggle }}" class="hov" style="width:32px;height:32px;display:grid;place-items:center;border-radius:8px;border:1px solid var(--color-ink-200);background:var(--color-cream-50);color:var(--color-ink-700);cursor:pointer">{{ themeIcon }}</button>
+        <div style="width:32px;height:32px;border-radius:999px;background:var(--color-cream-200);border:1px solid var(--color-ink-200);display:grid;place-items:center;color:var(--color-ink-700)">{{ ic.user }}</div>
+      </div>
+    </header>
+    <main style="padding:24px 64px 96px 24px;display:flex;flex-direction:column;gap:20px">
+      <div>
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--color-ink-500)"><span style="font-family:var(--font-mono);letter-spacing:0;text-transform:none">{{ today }}</span> · {{ cycleName }}</div>
+        <h1 style="font-family:var(--font-hand-ui);font-weight:400;font-size:40px;line-height:1.3;margin-top:4px;color:var(--color-ink-900)">{{ greeting }}<span style="color:var(--color-accent-amber);font-size:.5em;vertical-align:.6em;margin-left:.25em">✦</span></h1>
+      </div>
+      <sc-if value="{{ emptyCycle }}" hint-placeholder-val="{{ false }}">
+        <div class="card-paper" style="padding:56px 20px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px">
+          <span style="color:var(--color-ink-500);display:inline-flex">{{ ic.note28 }}</span>
+          <div style="font-size:18px;font-weight:600;color:var(--color-ink-900)">{{ t.empty_dash_title }}</div>
+          <p style="max-width:28rem;font-size:14px;color:var(--color-ink-500)">{{ t.empty_dash_body }}</p>
+          <a href="02-pipeline.html#add" class="hov-ink" style="margin-top:8px;display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:8px;background:var(--color-ink-900);color:var(--color-cream-50);font-size:14px;font-weight:500;transition:background-color 150ms var(--ease-quiet)">{{ ic.plus16 }}{{ t.add_app }}</a>
+        </div>
+      </sc-if>
+      <sc-if value="{{ notEmpty }}" hint-placeholder-val="{{ true }}">
+        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px">
+          <div class="card-paper" style="padding:16px"><div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--color-ink-500)">{{ t.kpi_active }}</div><div class="num" style="font-size:36px;line-height:1.1;margin-top:8px;color:var(--color-ink-900)">{{ kpi.active }}</div><div style="font-size:12px;color:var(--color-ink-500);margin-top:4px">{{ t.kpi_active_sub }}</div></div>
+          <div class="card-paper" style="padding:16px"><div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--color-ink-500)">{{ t.kpi_deadlines }}</div><div class="num" style="font-size:36px;line-height:1.1;margin-top:8px;color:var(--color-accent-amber)">{{ kpi.deadlines }}</div><div style="font-size:12px;color:var(--color-ink-500);margin-top:4px">{{ t.kpi_deadlines_sub }}</div></div>
+          <div class="card-paper" style="padding:16px"><div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--color-ink-500)">{{ t.kpi_interviews }}</div><div class="num" style="font-size:36px;line-height:1.1;margin-top:8px;color:var(--color-accent-olive)">{{ kpi.interviews }}</div><div style="font-size:12px;color:var(--color-ink-500);margin-top:4px">{{ kpi.interviewsSub }}</div></div>
+          <div class="card-paper" style="padding:16px;background:var(--color-cream-200);box-shadow:0 0 0 2px var(--color-cream-400)"><div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--color-ink-500)">{{ t.kpi_review }}</div><div class="num" style="font-size:36px;line-height:1.1;margin-top:8px;color:var(--color-ink-900)">{{ kpi.review }}</div><div style="font-size:12px;color:var(--color-ink-500);margin-top:4px">{{ t.kpi_review_sub }}</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(0,1.9fr) minmax(0,1fr);gap:16px;align-items:start">
+          <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+            <section class="card-paper" style="padding:20px">
+              <div style="display:flex;align-items:baseline;justify-content:space-between"><h2 style="font-size:14px;font-weight:600;color:var(--color-ink-900)">{{ t.sec_today }}</h2><span style="font-size:12px;color:var(--color-ink-500)">{{ todoCount }} {{ t.items_unit }}</span></div>
+              <sc-for list="{{ todoGroups }}" as="g" hint-placeholder-count="3">
+                <div style="margin-top:14px">
+                  <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--color-ink-500);padding-bottom:4px;border-bottom:1px solid var(--color-cream-200)">{{ g.label }}</div>
+                  <sc-for list="{{ g.items }}" as="it" hint-placeholder-count="2">
+                    <div style="display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:12px;padding:10px 0;border-bottom:1px solid var(--color-cream-200);align-items:start">
+                      <span style="color:var(--color-ink-500);margin-top:4px;display:inline-flex">{{ it.iconEl }}</span>
+                      <div style="min-width:0">
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;line-height:1.5"><span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--color-accent-amber)">{{ it.typeLabel }}</span><span style="font-size:14px;font-weight:600;color:var(--color-ink-900)">{{ it.company }}</span><span style="font-size:13px;color:var(--color-ink-500)">{{ it.role }}</span></div>
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px;line-height:1.5"><span style="font-size:13px;color:var(--color-ink-700)">{{ it.detail }}</span><span style="display:inline-flex;align-items:center;gap:4px;border-radius:999px;background:var(--color-source-bg);color:var(--color-source-fg);font-size:10.5px;font-weight:600;padding:0 7px 0 5px;line-height:18px;white-space:nowrap">{{ manualBadge.iconEl }}<span>{{ manualBadge.label }}</span></span></div>
+                      </div>
+                      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+                        <span style="font-family:var(--font-mono);font-size:13px;color:var(--color-ink-900);white-space:nowrap">{{ it.date }}</span>
+                        <span style="font-size:12px;color:var(--color-ink-500)">{{ it.rel }}</span>
+                        <sc-if value="{{ it.portal }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:6px;margin-top:4px"><a href="{{ it.url }}" target="_blank" rel="noopener" class="hov" style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--color-ink-200);color:var(--color-ink-900);font-size:12px;font-weight:500;white-space:nowrap;transition:background-color 150ms var(--ease-quiet)">{{ t.btn_portal }}{{ ic.ext12 }}</a><a href="{{ it.href }}" class="hov" style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;border:1px solid transparent;color:var(--color-ink-700);font-size:12px;font-weight:500;white-space:nowrap;transition:background-color 150ms var(--ease-quiet)">{{ t.btn_backfill }}</a></div></sc-if>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </section>
+            <section class="card-paper" style="padding:20px">
+              <h2 style="font-size:14px;font-weight:600;color:var(--color-ink-900)">{{ t.sec_upcoming }}</h2>
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--color-ink-500);margin-top:14px;padding-bottom:4px;border-bottom:1px solid var(--color-cream-200)">{{ t.sub_confirmed }}</div>
+              <sc-for list="{{ confirmed }}" as="iv" hint-placeholder-count="4">
+                <div style="display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:12px;padding:10px 0;border-bottom:1px solid var(--color-cream-200);align-items:center">
+                  <div><div style="font-family:var(--font-mono);font-size:13px;color:var(--color-ink-900)">{{ iv.date }}</div><div style="font-family:var(--font-mono);font-size:13px;color:var(--color-ink-500)">{{ iv.time }} JST</div></div>
+                  <div style="min-width:0">
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;line-height:1.5"><span style="font-size:14px;font-weight:600;color:var(--color-ink-900)">{{ iv.company }}</span><span style="font-size:13px;color:var(--color-ink-500)">{{ iv.role }}</span><span style="display:inline-flex;border-radius:999px;background:var(--color-cream-200);color:var(--color-ink-700);padding:0 8px;font-size:11px;font-weight:600;line-height:20px">{{ iv.round }}</span></div>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px;font-size:12px;color:var(--color-ink-700);line-height:1.6">{{ iv.modeIcon }}<span>{{ iv.mode }} · {{ iv.tool }}</span><sc-if value="{{ iv.hasLink }}" hint-placeholder-val="{{ false }}"><a href="{{ iv.link }}" target="_blank" rel="noopener" style="font-family:var(--font-mono);font-size:12px;color:var(--color-ink-700);display:inline-flex;align-items:center;gap:4px;text-decoration:underline;text-decoration-color:var(--color-ink-300);text-underline-offset:3px">{{ ic.link12 }}{{ iv.linkText }}</a></sc-if><sc-if value="{{ iv.pendingLink }}" hint-placeholder-val="{{ false }}"><span class="pending" style="display:inline-flex;align-items:center;gap:4px;padding:0 8px;font-size:11px;font-weight:500;line-height:20px;white-space:nowrap">{{ t.pending_link }}</span></sc-if></div>
+                  </div>
+                  <span style="display:inline-flex;align-items:center;gap:4px;border-radius:999px;background:var(--color-source-bg);color:var(--color-source-fg);font-size:10.5px;font-weight:600;padding:0 7px 0 5px;line-height:18px;white-space:nowrap">{{ iv.badge.iconEl }}<span>{{ iv.badge.label }}</span></span>
+                </div>
+              </sc-for>
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--color-ink-500);margin-top:14px;padding-bottom:4px;border-bottom:1px solid var(--color-cream-200)">{{ t.sub_unscheduled }}</div>
+              <sc-for list="{{ unscheduled }}" as="iv" hint-placeholder-count="1">
+                <div style="display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:12px;padding:10px 0;border-bottom:1px solid var(--color-cream-200);align-items:center">
+                  <div><span class="pending" style="display:inline-flex;align-items:center;gap:4px;padding:0 8px;font-size:11px;font-weight:500;line-height:20px;white-space:nowrap">{{ t.pending_time }}</span></div>
+                  <div style="min-width:0">
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;line-height:1.5"><span style="font-size:14px;font-weight:600;color:var(--color-ink-900)">{{ iv.company }}</span><span style="font-size:13px;color:var(--color-ink-500)">{{ iv.role }}</span><span style="display:inline-flex;border-radius:999px;background:var(--color-cream-200);color:var(--color-ink-700);padding:0 8px;font-size:11px;font-weight:600;line-height:20px">{{ iv.round }}</span></div>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px;font-size:12px;color:var(--color-ink-700);line-height:1.6"><span>「{{ iv.note }}」</span><span style="color:var(--color-ink-500)">{{ t.reply_by }}</span><span style="font-family:var(--font-mono)">{{ iv.replyBy }}</span><span class="pending" style="display:inline-flex;align-items:center;gap:4px;padding:0 8px;font-size:11px;font-weight:500;line-height:20px;white-space:nowrap">{{ t.pending_tool }}</span></div>
+                  </div>
+                  <span style="display:inline-flex;align-items:center;gap:4px;border-radius:999px;background:var(--color-source-bg);color:var(--color-source-fg);font-size:10.5px;font-weight:600;padding:0 7px 0 5px;line-height:18px;white-space:nowrap">{{ iv.badge.iconEl }}<span>{{ iv.badge.label }}</span></span>
+                </div>
+              </sc-for>
+            </section>
+            <section class="card-paper" style="padding:20px">
+              <h2 style="font-size:14px;font-weight:600;color:var(--color-ink-900)">{{ t.sec_recent }}</h2>
+              <sc-for list="{{ recent }}" as="r" hint-placeholder-count="4">
+                <div style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;padding:12px 0;border-bottom:1px solid var(--color-cream-200);align-items:start">
+                  <div><div style="font-family:var(--font-mono);font-size:13px;color:var(--color-ink-900)">{{ r.time }}</div><div style="margin-top:4px"><span style="display:inline-flex;align-items:center;gap:4px;border-radius:999px;background:var(--color-source-bg);color:var(--color-source-fg);font-size:10.5px;font-weight:600;padding:0 7px 0 5px;line-height:18px;white-space:nowrap">{{ manualBadge.iconEl }}<span>{{ manualBadge.label }}</span></span></div></div>
+                  <div style="min-width:0">
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;line-height:1.5"><a href="{{ r.href }}" style="font-size:14px;font-weight:600;color:var(--color-ink-900)">{{ r.company }}</a><span style="font-size:13px;color:var(--color-ink-500)">{{ r.role }}</span><sc-if value="{{ r.overridden }}" hint-placeholder-val="{{ false }}"><span title="{{ t.overridden }}" role="img" aria-label="{{ t.overridden }}" style="display:inline-grid;place-items:center;width:18px;height:18px;border-radius:999px;background:var(--color-override-bg);color:var(--color-override-fg)">{{ ic.pencil11 }}</span></sc-if></div>
+                    <div style="font-size:13px;color:var(--color-ink-700);margin-top:2px;overflow-wrap:anywhere">{{ r.summary }}</div>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><span style="font-size:12px;color:var(--color-ink-500)">{{ r.conf }}</span>
+                      <sc-if value="{{ r.review }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:4px;border-radius:999px;border:1px solid var(--color-review-border);background:var(--color-review-bg);color:var(--color-review-fg);padding:0 8px;font-size:11px;font-weight:600;line-height:20px">{{ ic.alert12 }}{{ t.review_tag }}</span><button onClick="{{ r.accept }}" class="hov" style="display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:8px;border:1px solid var(--color-ink-200);background:transparent;color:var(--color-ink-900);font-size:12px;font-weight:500;cursor:pointer">{{ t.act_accept }}</button><button class="hov" style="display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--color-ink-700);font-size:12px;font-weight:500;cursor:pointer">{{ t.act_fix }}</button></sc-if>
+                      <sc-if value="{{ r.acceptedLabel }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:var(--color-pos-500);display:inline-flex;gap:4px;align-items:center">{{ ic.check14 }}{{ r.acceptedLabel }}</span></sc-if>
+                    </div>
+                  </div>
+                </div>
+              </sc-for>
+            </section>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+            <section class="card-paper" style="padding:20px">
+              <div style="display:flex;align-items:center;gap:10px"><span style="width:28px;height:28px;border-radius:999px;background:linear-gradient(135deg,#F4C430,#D97706);display:grid;place-items:center;color:#fff;font-family:var(--font-hand);font-weight:700;font-size:15px;line-height:1;flex-shrink:0">M</span><h2 style="font-family:var(--font-hand-ui);font-size:22px;font-weight:400;color:var(--color-ink-900);line-height:1.2">{{ t.sec_tips }}</h2></div>
+              <div class="pending" style="margin-top:14px;padding:18px 14px;text-align:center;font-size:12px;line-height:1.7;border-radius:10px"><div style="font-weight:600;color:var(--color-ink-700)">{{ t.coming_soon }}</div><div>{{ t.coming_soon_tips }}</div></div>
+            </section>
+            <section class="card-paper" style="padding:20px">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><h2 style="font-size:14px;font-weight:600;color:var(--color-ink-900)">{{ t.sec_dist }}</h2><span style="font-size:12px;color:var(--color-ink-500);text-align:right">{{ total }} {{ t.apps_unit }} · {{ t.by_display }}</span></div>
+              <div style="margin-top:12px">{{ distChart }}</div>
+              <sc-for list="{{ dist }}" as="d" hint-placeholder-count="4">
+                <div style="display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--color-cream-200)">
+                  <span style="width:11px;height:11px;border-radius:2px;border:1px solid var(--color-ink-900);background:{{ d.color }};display:inline-block;transform:rotate(-5deg)"></span>
+                  <div style="min-width:0"><div style="font-size:13px;font-weight:600;color:var(--color-ink-900)">{{ d.label }}</div><div style="font-size:12px;color:var(--color-ink-500)">{{ d.sub }}</div></div>
+                  <span class="num" style="font-size:20px;color:var(--color-ink-900)">{{ d.count }}</span>
+                </div>
+              </sc-for>
+            </section>
+            <section class="card-paper" style="padding:20px">
+              <div style="display:flex;align-items:baseline;justify-content:space-between"><h2 style="font-size:14px;font-weight:600;color:var(--color-ink-900)">{{ t.sec_sources }}</h2><a href="12-settings.html#sources" style="font-size:12px;color:var(--color-ink-500);display:inline-flex;align-items:center;gap:4px">{{ t.nav_sources }}{{ ic.arrow14 }}</a></div>
+              <div class="pending" style="margin-top:14px;padding:18px 14px;text-align:center;font-size:12px;line-height:1.7;border-radius:10px"><div style="font-weight:600;color:var(--color-ink-700)">{{ t.coming_soon }}</div><div>{{ t.coming_soon_sources }}</div></div>
+            </section>
+          </div>
+        </div>
+      </sc-if>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;lang&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;zh&quot;,&quot;ja&quot;,&quot;en&quot;],&quot;default&quot;:&quot;zh&quot;,&quot;tsType&quot;:&quot;'zh' | 'ja' | 'en'&quot;,&quot;section&quot;:&quot;界面&quot;}}">
+class Component extends DCLogic {
+  state = { lang: localStorage.getItem('jp.lang') || 'zh', langTouched: false, theme: localStorage.getItem('jp.theme') || 'light', cycle: localStorage.getItem('jp.cycle') || 'c2027', cycleOpen: false, ready: !!window.JP, accepted: {} };
+  componentDidMount() {
+    document.documentElement.dataset.theme = this.state.theme;
+    if (!window.JP) window.addEventListener('jp-ready', () => this.setState({ ready: true }), { once: true });
+  }
+  setLang(l) { localStorage.setItem('jp.lang', l); this.setState({ lang: l, langTouched: true }); }
+  toggleTheme() { const th = this.state.theme === 'dark' ? 'light' : 'dark'; localStorage.setItem('jp.theme', th); document.documentElement.dataset.theme = th; this.setState({ theme: th }); }
+  setCycle(id) { localStorage.setItem('jp.cycle', id); this.setState({ cycle: id, cycleOpen: false }); }
+  renderVals() {
+    const m = window.JP, st = this.state, lang = st.langTouched ? st.lang : (this.props.lang || st.lang);
+    const HF = { zh: '"Ma Shan Zheng","Kalam",cursive', ja: '"Klee One","Kalam",cursive', en: '"Indie Flower","Kalam",cursive' };
+    if (!m) return { lang, handFont: HF[lang] || HF.zh, t: {}, ic: {}, langBg: {}, kpi: {}, emptyCycle: false, notEmpty: true, cycleOpen: false, today: '2026-09-17（木）' };
+    const sh = m.shell(this, React), t = sh.t, L = v => m.L(v, lang), inCycle = new Set(sh.cycleApps.map(a => a.id));
+    const TI = { deadline: 'flag', interview: 'video', followup: 'followup', portal: 'globe' };
+    const todoGroups = m.DASH.todos.map(g => ({ label: t[g.label], items: g.items.filter(it => inCycle.has(it.app)).map(it => { const a = m.app(it.app), c = m.coOf(a);
+      return { iconEl: m.icon(React, TI[it.type], 16), typeLabel: t['type_' + it.type], company: c.name, role: a.role, detail: L(it.detail), date: it.date || '', rel: L(it.rel), portal: it.type === 'portal', url: c.url, href: a.detail ? '03-application.html' : '02-pipeline.html' }; }) })).filter(g => g.items.length);
+    const todoCount = todoGroups.reduce((n, g) => n + g.items.length, 0);
+    const ivs = m.INTERVIEWS.filter(x => inCycle.has(x.app)), iv = x => m.interview(React, x, t, lang);
+    const confirmed = ivs.filter(x => x.date).map(iv), unscheduled = ivs.filter(x => !x.date).map(iv);
+    const recent = m.DASH.recent.filter(r => inCycle.has(r.app)).map(r => { const a = m.app(r.app), c = m.coOf(a), ok = !!st.accepted[r.id];
+      return { time: r.time, company: c.name, role: a.role, summary: L(r.summary), conf: r.conf != null ? t.confidence + ' ' + r.conf.toFixed(2) : '', review: !!r.review && !ok, href: a.detail ? '03-application.html' : '02-pipeline.html',
+        acceptedLabel: ok ? t.confirmed_by_user + ' · ' + m.TODAY : '', accept: () => this.setState(s => ({ accepted: { ...s.accepted, [r.id]: true } })), overridden: !!r.overridden }; });
+    const counts = {}; for (const a of sh.cycleApps) { const s = m.shown(a); counts[s] = (counts[s] || 0) + 1; }
+    const gc = {}; const dist = m.GROUPS.map(([g, ss]) => { const n = ss.reduce((acc, s) => acc + (counts[s] || 0), 0); gc[g] = n;
+      return { label: t['g_' + g], count: n, color: m.GCOL[g], sub: ss.filter(s => counts[s]).map(s => t['st_' + s] + ' ' + counts[s]).join(' · ') || '—' }; });
+    const reviewN = m.DASH.recent.filter(r => r.review && inCycle.has(r.app) && !st.accepted[r.id]).length + (inCycle.has('acme-are') ? 1 : 0);
+    const kpi = { active: gc.active || 0, deadlines: sh.cycleApps.filter(a => a.next && (a.next.kind === 'deadline' || a.next.kind === 'reply') && a.next.date <= '2026-09-20（日）23:59').length,
+      interviews: confirmed.filter(x => x.date <= '2026-09-24（木）').length, interviewsSub: t.kpi_interviews_sub.replace('{n}', unscheduled.length), review: reviewN };
+    return { ...sh, todoGroups, todoCount, confirmed, unscheduled, recent, dist, distChart: m.distChart(React, gc), total: sh.cycleApps.length, kpi };
+  }
+}
+</script>
+</body>
+</html>

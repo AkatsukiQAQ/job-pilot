@@ -15,10 +15,11 @@ from jobpilot.domain import (
     EventCreate,
     EventSource,
     EventType,
+    StatusSetBy,
     Track,
 )
 from jobpilot.services import manual, status
-from jobpilot.store.repo import ApplicationRepo, CampaignRepo, CompanyRepo, EventRepo
+from jobpilot.store.repo import ApplicationRepo, AutoUpdate, CampaignRepo, CompanyRepo, EventRepo
 
 T0 = datetime(2030, 3, 1, tzinfo=UTC)
 
@@ -93,9 +94,10 @@ def test_user_status_wins_and_is_audited(conn: sqlite3.Connection, application: 
     assert app.auto_status is ApplicationStatus.INTERVIEWING
     assert app.status is ApplicationStatus.REJECTED
     # a later automatic event does not change what the user sees
-    app = manual.log_event(
+    app, inserted = manual.log_event(
         conn, application_id=application, event_type=EventType.OFFER, occurred_at=T0
     )
+    assert inserted
     assert app.auto_status is ApplicationStatus.OFFER
     assert app.status is ApplicationStatus.REJECTED
     audit = conn.execute(
@@ -103,6 +105,106 @@ def test_user_status_wins_and_is_audited(conn: sqlite3.Connection, application: 
     ).fetchone()
     assert '"user_status": null' in audit["before_json"]
     assert '"user_status": "rejected"' in audit["after_json"]
+
+
+def test_delete_event_clears_derived_fields(conn: sqlite3.Connection, application: int) -> None:
+    app, inserted = manual.log_event(
+        conn, application_id=application, event_type=EventType.INTERVIEW, occurred_at=T0
+    )
+    assert inserted
+    assert app.auto_status is ApplicationStatus.INTERVIEWING
+    event_id = EventRepo(conn).list_for(application)[0].event_id
+
+    app = manual.delete_event(conn, event_id=event_id)
+    assert app.auto_status is ApplicationStatus.UNRECORDED
+    assert app.last_event_at is None
+    assert app.applied_at is None
+
+    with pytest.raises(KeyError):
+        manual.delete_event(conn, event_id=event_id)
+
+
+def test_applied_at_ignores_terminal_only_ledger(
+    conn: sqlite3.Connection, application: int
+) -> None:
+    app, _ = manual.log_event(
+        conn, application_id=application, event_type=EventType.REJECTION, occurred_at=T0
+    )
+    assert app.auto_status is ApplicationStatus.REJECTED
+    assert app.applied_at is None
+    assert app.last_event_at == T0
+
+
+def test_pass_advances_last_event_at(conn: sqlite3.Connection, application: int) -> None:
+    manual.log_event(conn, application_id=application, event_type=EventType.ACK, occurred_at=T0)
+    app, _ = manual.log_event(
+        conn,
+        application_id=application,
+        event_type=EventType.PASS,
+        occurred_at=T0 + timedelta(days=3),
+    )
+    assert app.last_event_at == T0 + timedelta(days=3)
+    assert app.auto_status is ApplicationStatus.APPLIED
+
+
+def test_recompute_keeps_user_override_marker(conn: sqlite3.Connection, application: int) -> None:
+    manual.set_status(conn, application_id=application, user_status=ApplicationStatus.WITHDRAWN)
+    app, _ = manual.log_event(
+        conn, application_id=application, event_type=EventType.INTERVIEW, occurred_at=T0
+    )
+    assert app.status_set_by is StatusSetBy.USER
+    assert app.auto_status is ApplicationStatus.INTERVIEWING
+    assert app.status is ApplicationStatus.WITHDRAWN
+
+
+def test_duplicate_log_event_is_a_pure_noop(conn: sqlite3.Connection, application: int) -> None:
+    manual.log_event(
+        conn, application_id=application, event_type=EventType.INTERVIEW, occurred_at=T0
+    )
+    n_audit = conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0]
+    updated = ApplicationRepo(conn).get(application)
+    assert updated is not None
+    app, inserted = manual.log_event(
+        conn, application_id=application, event_type=EventType.INTERVIEW, occurred_at=T0
+    )
+    assert not inserted
+    assert conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0] == n_audit
+    assert app.updated_at == updated.updated_at
+
+
+def test_update_auto_skips_no_change(conn: sqlite3.Connection, application: int) -> None:
+    repo = ApplicationRepo(conn)
+    n_audit = conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0]
+    before = repo.get(application)
+    after = repo.update_auto(application, AutoUpdate(auto_status=ApplicationStatus.UNRECORDED))
+    assert before is not None and after.updated_at == before.updated_at
+    assert conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0] == n_audit
+
+
+def test_update_event_rederives(conn: sqlite3.Connection, application: int) -> None:
+    manual.log_event(
+        conn, application_id=application, event_type=EventType.INTERVIEW, occurred_at=T0
+    )
+    event_id = EventRepo(conn).list_for(application)[0].event_id
+    app = manual.update_event(
+        conn,
+        event_id=event_id,
+        event_type=EventType.REJECTION,
+        occurred_at=T0 + timedelta(days=1),
+        summary="declined",
+    )
+    assert app.auto_status is ApplicationStatus.REJECTED
+    assert app.last_event_at == T0 + timedelta(days=1)
+    assert (
+        conn.execute(
+            "SELECT COUNT(*) FROM audit_log WHERE action = 'application_event.update'"
+        ).fetchone()[0]
+        == 1
+    )
+    with pytest.raises(KeyError):
+        manual.update_event(
+            conn, event_id=999, event_type=EventType.ACK, occurred_at=T0, summary=None
+        )
 
 
 def test_add_application_dedupes_company_and_natural_key(conn: sqlite3.Connection) -> None:
