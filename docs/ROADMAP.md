@@ -46,7 +46,7 @@
 
 范围：
 - 后端：`services/status.py`（事件 → 自动状态推导、`is_ghosted`）、`services/manual.py`（添加申请（可带初始状态）/ 编辑申请 / 记事件 / 删事件 / 改用户状态 / 删申请 / 删周期，直接写库 + 审计，D29、D33）、`CampaignRepo.set_active`、`web/`（FastAPI 工厂、13 个 JSON 接口、错误码化的 `detail`、托管 `frontend/dist`）、`jobpilot serve`。
-- 前端 `frontend/`：React 19 + Vite 7 + Tailwind v4 + TanStack Query + React Router + lucide-react；`tokens.css` 拷自 `docs/design/v1/`；应用外壳（完整导航树，未做项标 Soon；顶栏周期切换下拉 / 语言分段控件 / 主题）；页面 01 看板（KPI、今日与本周分组待办、手绘风状态分布）、02 Pipeline（表格视图、状态组 / track / 关键词筛选 + 添加申请，可选初始状态）、03 申请详情（编辑基本信息与截止 / 下一步 / 门户链接、改状态确认卡、记事件 / 删事件、低置信待复核标记、备注保存为事件、删除申请）、12 信息源空态 · 设置（周期管理，删除周期需两步确认）；成功 toast；i18n 跟随浏览器回退 en（D28）。
+- 前端 `frontend/`：React 19 + Vite 7 + Tailwind v4 + TanStack Query + React Router + lucide-react；`tokens.css` 拷自 `docs/design/v1/`；应用外壳（完整导航树，未做项标 Soon；顶栏周期切换下拉 / 语言分段控件 / 主题）；页面 01 看板（KPI、今日与本周分组待办、手绘风状态分布）、02 Pipeline（表格视图、整行可点、状态组 / track / 关键词筛选记在 URL、添加申请可选初始状态并可连续录入）、03 申请详情（编辑基本信息与截止 / 下一步 / 门户链接、改状态确认卡、事件卡片可编辑 / 删除、低置信待复核标记、备注保存为事件、删除申请）、01 看板（整行可点、已过期组、下一步一键完成、按时段问候）、12 信息源空态 · 设置（周期管理，删除周期需两步确认）；成功 toast；字体自托管（D34）；本地 API Host 校验（D35）；i18n 跟随浏览器回退 en（D28）。
 - 文档：本文件、REQUIREMENTS D26 到 D31、`docs/design/` 说明、CLAUDE.md 前端约定。
 
 不做：⌘K 搜索、AI 提醒卡、信息源健康条、Pipeline 看板视图、手机版、面试页、任何自动数据源、`pending_actions`、CLI 录入命令。
@@ -57,6 +57,7 @@
 - `pytest / ruff / pyright / check_pii` 全绿；`npm run build && npm run lint` 通过。
 - 由用户验收。Claude Design 四页 HTML、组件规范、三语字典已于 2026-09-18 到齐（`docs/design/v1/dashboard-v1/`）；2026-09-20 对照校正完毕（分支 `feat/ui-reconstruction`），面试卡 / 门户卡 / 邮件引用 / ⌘K 搜索等依赖后续数据源的设计元素留给 2a / 2c。
 - UAT 复查（2026-09-20，6 个视角、28 项确认）全部修复：编辑 / 删除申请、删事件、删周期、初始状态、toast，以及事件时间按显示时区解析、看板 KPI 口径、错误反馈与重试、错误文案三语化、a11y 细节。
+- 第二轮 UAT（2026-09-20 用户反馈 + Fable 7 视角深查，去重后 45 项）全部修复：事件可编辑、整行 / 整卡可点、删周期两步确认可被绕过、看板窗口与 closed 排除、最近事件口径、公司改名 no-op、applied_at 口径、时区跟随选中周期、Safari 下周期菜单、字体自托管、Host 校验等。
 
 ---
 

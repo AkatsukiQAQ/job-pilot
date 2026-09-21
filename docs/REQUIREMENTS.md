@@ -377,7 +377,9 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 | D29 | 用户本人在网页 / CLI 上的写操作直接写库并写审计，前端确认卡片只是二次确认；`pending_actions` 提议表只服务 AI 路径，在第 3b 步引入 | 操作者是用户本人，不违反约束 2；第一步少一张表一层 API | 3b 时不迁移手动路径 |
 | D30 | 新增依赖：后端 fastapi、uvicorn[standard]，dev httpx（TestClient）；前端 React 19 / Vite 7 / Tailwind v4 / TanStack Query 5 / React Router 7 / lucide-react（与 MITA Finance 一致） | 第一步需要 Web 服务与前端；与姊妹项目同栈省学习成本 | 无 |
 | D31 | **不做语音**：删除按住说话、语音操作清单、转写方案；9.2 中浏览器 / 混说识别两问题作废 | 用户 2026-09-18 决定 | 用户可重新提出 |
-| D33 | 用户可在网页上**编辑**申请（公司 / 岗位 / Track / 岗位链接 / 备注 / 截止日期 / 下一步 / 门户链接，不允许换周期）、**硬删除**申请、事件、周期：删除写 `audit_log`（`before_json` 保留整行），事件随申请级联，周期删除先逐条删申请再删周期，并需两步确认（确认 + 输入 `DELETE`）；不做归档 / 软删除，不做编辑事件。添加申请可选初始状态，写为 `user_status`（用户断言，不伪造事件）。后端错误 `detail` 统一为 `{code, …}` 供前端三语化 | 用户 2026-09-20 验收时要求；归档会占住自然键且需新迁移；审计表已能追溯删除 | 需要时可加归档列 |
+| D33 | 用户可在网页上**编辑**申请（公司 / 岗位 / Track / 岗位链接 / 备注 / 截止日期 / 下一步 / 门户链接，不允许换周期）和**编辑事件**（类型 / 时间 / 摘要，改后重算自动状态）、**硬删除**申请、事件、周期：删除写 `audit_log`（`before_json` 保留整行；级联删除的事件各有一行审计），周期删除先逐条删申请再删周期，并需两步确认（确认 + 输入 `DELETE`）；不做归档 / 软删除。添加申请可选初始状态，写为 `user_status`（用户断言，不伪造事件）。「下一步」可在看板一键标记完成（清空字段，写审计），记到更高阶段的事件时自动清空。改公司名只改大小写 / 全半角时同事务更新 `company.name`（审计 `company.rename`）。后端错误 `detail` 统一为 `{code, …}` 供前端三语化 | 用户 2026-09-20 验收时要求；归档会占住自然键且需新迁移；审计表已能追溯删除 | 需要时可加归档列 |
+| D34 | 前端字体**自托管**：`@fontsource/{noto-sans-jp,kalam,indie-flower,klee-one,fraunces,jetbrains-mono}` 打进构建产物，去掉对 `fonts.googleapis.com` 的运行时请求 | 用户 2026-09-20 决定；CLAUDE.md 要求新的数据外发路径先记录再实现，字体拉取本身就是一条外发路径，且离线不可用 | 可换回 CDN，但要在此表记录 |
+| D35 | 本地 Web API 加 `TrustedHostMiddleware`（只接受 loopback 与配置的 host），`create_app` 在绑定非 loopback 地址且 `JOBPILOT_AUTH_MODE=none` 时拒绝启动；认证模式与 Docker 部署留到第 7 步 | Fable 深查（2026-09-20）指出 DNS rebinding 可让任意网页读写本地 API；D27 已规定此前只在本机运行 | 第 7 步实现认证后放开 |
 
 ---
 
