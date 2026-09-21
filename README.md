@@ -3,7 +3,7 @@
 本地优先、只读接入外部信息源、带 AI 对话与记忆的个人求职工作台。
 A local-first, read-only-integrated personal job-hunting workbench with an AI chat and memory layer.
 
-> 状态（2026-09-20）：骨架、追踪域 schema、Google 只读连接器已完成；**第 1 步「基础网页看板（手动录入）」已实现并对照 Claude Design 四页设计稿校正完毕，待验收**（`step1-board` 已合入 `main`，校正在分支 `feat/ui-reconstruction`）。下一步接 Gmail。顺序见 [docs/ROADMAP.md](docs/ROADMAP.md)。
+> 状态（2026-09-21）：骨架、追踪域 schema、Google 只读连接器已完成；**第 1 步「基础网页看板（手动录入）」已验收通过**（两轮 UAT，含编辑 / 删除、事件卡片、看板待办与已过期组）。下一步：第 2a 步 Gmail 接入（分支 `step2a-gmail`）。下一步接 Gmail。顺序见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
 ## 它做什么
 

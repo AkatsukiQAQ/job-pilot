@@ -2,7 +2,7 @@
 
 | 项目 | 内容 |
 |---|---|
-| 状态 | v0.4（2026-09-18 按决策 D26 重排；2026-09-20 第 1 步对照设计稿校正完成） |
+| 状态 | v0.4（2026-09-18 按决策 D26 重排；2026-09-21 第 1 步验收通过） |
 | 前置 | [REQUIREMENTS.md](REQUIREMENTS.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [design/v1/](design/v1/) |
 
 原则：**先有每天能打开、能手动记录的看板，再让数据自动流入，最后加对话**。每一步独立可用；每一步一个 git 分支（`step1-board`、`step2a-gmail` …），用户验收后合回 `main`。托管部署（Docker、云、登录自启）全部放在最后一步（D27），此前只在本机 `jobpilot serve` 运行。不做语音（D31）。
@@ -15,7 +15,7 @@
 |---|---|---|---|
 | 0 | 骨架 | `src/` 布局、配置、密钥、迁移器、区域包协议、CI 基线 | 完成（2026-09-17） |
 | 0.5 | 追踪域与 Google 连接器 | 迁移 0001 全部表、枚举、仓储、FTS；`ReadOnlyHttp`、多账号 `auth google`、Gmail API 层 | 完成（原 Phase 1 S1 / S2，`9ab39b3`、`1e95673`） |
-| 1 | 基础网页看板 | FastAPI 看板 API + 手动录入 + React 四页（看板 / Pipeline / 申请详情 / 周期设置） | **待验收**（`step1-board` 已合入 `main`；设计稿校正在 `feat/ui-reconstruction`） |
+| 1 | 基础网页看板 | FastAPI 看板 API + 手动录入 + React 四页（看板 / Pipeline / 申请详情 / 周期设置） | 完成（2026-09-21 验收通过；`step1-board` + `feat/ui-reconstruction`） |
 | 2a | Gmail 接入 | 规则与短语、同步与分类管线、`sync / senders / watch`、信息源页、待复核页 | |
 | 2b | LinkedIn 导出导入 | `import linkedin <zip>`、Easy Apply 合并 | |
 | 2c | Calendar 面试 | `interview_event`、gcal 只读同步、面试页 | |
@@ -40,7 +40,7 @@
 
 ---
 
-## 第 1 步 · 基础网页看板（待验收）
+## 第 1 步 · 基础网页看板（完成，2026-09-21 验收通过）
 
 **目标**：在浏览器里建周期、手动添加申请、记事件、改状态，看板与 Pipeline 随之变化；界面按 MITA Finance 设计语言，三语，暗色可切。数据全部手动录入，不接任何外部源。
 

@@ -337,7 +337,7 @@ Mita JobPilot 是一个**本地优先、只读接入外部信息源、带 AI 对
 
 已完成：Phase 0 骨架；追踪域 schema 与仓储（原 Phase 1 S1）；Google 只读连接器、多账号授权、Gmail API 层（原 S2，`1e95673`）；Google Cloud 项目与 Desktop OAuth 客户端已就位；Claude Design 交付物 A / B 已落 `docs/design/v1/`，C / D / E（第 1 步四页 HTML、组件规范、三语字典）已落 `docs/design/v1/dashboard-v1/`。
 
-进行中：**第 1 步 基础网页看板**（`step1-board` 已合入 `main`；对照设计稿校正视觉细节在分支 `feat/ui-reconstruction`，待用户验收），见 ROADMAP.md。之后按 D26 顺序：Gmail 接入 → LinkedIn 导出 → Calendar → 对话 → 岗位搜索 → 记忆 → 加固 → 发布与部署。
+已完成（2026-09-21 验收）：**第 1 步 基础网页看板**（`step1-board` + `feat/ui-reconstruction`）。进行中：**第 2a 步 Gmail 接入**（分支 `step2a-gmail`），见 ROADMAP.md。之后按 D26 顺序：Gmail 接入 → LinkedIn 导出 → Calendar → 对话 → 岗位搜索 → 记忆 → 加固 → 发布与部署。
 
 ---
 
